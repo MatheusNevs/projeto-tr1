@@ -1,0 +1,41 @@
+# Ignorar cache do Python
+__pycache__/
+*.py[cod]
+*.pyc
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+pyvenv.cfg
+.Python
+
+# Environment variables and secrets
+.env
+*.env
+
+# Build / distribution
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+pip-wheel-metadata/
+
+# IDEs / editors
+.vscode/
+.idea/
+*.swp
+
+# Caches, coverage, logs
+.pytest_cache/
+.mypy_cache/
+__pycache__/
+.coverage
+htmlcov/
+coverage.xml
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
