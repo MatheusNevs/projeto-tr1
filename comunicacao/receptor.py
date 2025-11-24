@@ -40,11 +40,11 @@ class Receptor:
         """
         Processa sinal através das camadas (RX)
 
-        Fluxo (inverso do TX):
+        Fluxo COMPLETO EM BITS (inverso do TX):
         1. Sinal → Demodulação (Física)
         2. Bits → Desenquadramento (Enlace)
-        3. Dados → Verificação de Erros (Enlace)
-        4. Bits → Hamming (Enlace - opcional)
+        3. Bits → Verificação de Erros (Enlace)
+        4. Bits → Hamming (Enlace - Correção)
         5. Bits → Texto (Aplicação)
 
         Args:
@@ -59,33 +59,26 @@ class Receptor:
         bits_recuperados = self.modulador.decodificar(sinal)
         self._log(f"RX: {len(bits_recuperados)} bits demodulados")
 
-        # 2. Física → Enlace: Bits → Bytes
-        bytes_recuperados = Conversor.bits_para_bytes(bits_recuperados)
-        self._log(f"RX: {len(bytes_recuperados)} bytes")
+        # 2. Enlace: Desenquadramento (primeiro passo da camada de enlace)
+        bits_dados = self.enquadrador.desenquadrar(bits_recuperados)
+        self._log(f"RX: Desenquadramento ({type(self.enquadrador).__name__}) - {len(bits_dados)} bits")
 
-        # 3. Enlace: Desenquadramento
-        dados = self.enquadrador.desenquadrar(bytes_recuperados)
-        self._log(f"RX: Quadro desenquadrado")
-
-        # 4. Enlace: Verificação de erros
-        dados, self.erro_detectado = self.detector_erros.verificar(dados)
+        # 3. Enlace: Verificação de erros
+        bits_sem_deteccao, self.erro_detectado = self.detector_erros.verificar(bits_dados)
         if self.erro_detectado:
             self._log(f"RX: ⚠️  ERRO DETECTADO!")
         else:
             self._log(f"RX: ✓ Sem erros detectados")
+        self._log(f"RX: Verificação ({type(self.detector_erros).__name__}) - {len(bits_sem_deteccao)} bits")
 
-        # 5. Enlace: Correção de erros (Hamming) - opcional
+        # 4. Enlace: Correção de erros (Hamming) - opcional
         if self.usar_hamming:
-            bits_hamming = Conversor.bytes_para_bits(dados)
-            dados, self.erros_corrigidos = self.corretor.verificar(bits_hamming)
+            dados_bytes, self.erros_corrigidos = self.corretor.verificar(bits_sem_deteccao)
             self._log(f"RX: Hamming - {self.erros_corrigidos} erro(s) corrigido(s)")
+            bits_sem_deteccao = Conversor.bytes_para_bits(dados_bytes)
 
-        # 6. Aplicação: Bytes → Texto
-        mensagem = ""
-        for byte in dados:
-            if 32 <= byte <= 126:  # ASCII imprimível
-                mensagem += chr(byte)
-
+        # 5. Aplicação: Bits → Texto
+        mensagem = Conversor.bits_para_texto(bits_sem_deteccao)
         self._log(f"RX: Mensagem reconstruída: '{mensagem}'")
 
         return mensagem

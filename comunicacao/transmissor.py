@@ -38,11 +38,11 @@ class Transmissor:
         """
         Processa mensagem através das camadas (TX)
 
-        Fluxo:
+        Fluxo COMPLETO EM BITS (ordem correta):
         1. Texto → Bits (Aplicação)
-        2. Bits → Hamming (Enlace - opcional)
-        3. Bytes → Detecção de Erros (Enlace)
-        4. Dados → Enquadramento (Enlace)
+        2. Bits → Hamming (Enlace - Correção)
+        3. Bits → Detecção de Erros (Enlace)
+        4. Bits → Enquadramento (Enlace) ← último da camada de enlace
         5. Bits → Modulação (Física)
 
         Args:
@@ -54,32 +54,26 @@ class Transmissor:
         self._log(f"TX: Mensagem original: '{mensagem}'")
 
         # 1. Aplicação: Texto → Bits
-        bits = Conversor.texto_para_bits(mensagem)
-        self._log(f"TX: {len(bits)} bits gerados")
+        bits_dados = Conversor.texto_para_bits(mensagem)
+        self._log(f"TX: {len(bits_dados)} bits ({len(mensagem)} caracteres)")
 
-        # 2. Enlace: Bits → Bytes
-        dados_bytes = Conversor.bits_para_bytes(bits)
-        self._log(f"TX: {len(dados_bytes)} bytes")
-
-        # 3. Enlace: Correção de erros (Hamming) - opcional
+        # 2. Enlace: Correção de erros (Hamming) - opcional
         if self.usar_hamming:
-            bits_hamming = self.corretor.adicionar(dados_bytes)
-            dados_bytes = Conversor.bits_para_bytes(bits_hamming)
-            self._log(f"TX: Hamming aplicado")
+            # Hamming precisa de bytes, então converte temporariamente
+            bytes_temp = Conversor.bits_para_bytes(bits_dados)
+            bits_hamming = self.corretor.adicionar(bytes_temp)
+            bits_dados = bits_hamming
+            self._log(f"TX: Hamming aplicado ({len(bits_dados)} bits)")
 
-        # 4. Enlace: Detecção de erros
-        dados_com_deteccao = self.detector_erros.adicionar(dados_bytes)
-        self._log(f"TX: Detecção de erros aplicada ({type(self.detector_erros).__name__})")
+        # 3. Enlace: Detecção de erros
+        bits_com_deteccao = self.detector_erros.adicionar(bits_dados)
+        self._log(f"TX: Detecção aplicada ({type(self.detector_erros).__name__}) - {len(bits_com_deteccao)} bits")
 
-        # 5. Enlace: Enquadramento
-        quadro = self.enquadrador.enquadrar(dados_com_deteccao)
-        self._log(f"TX: Quadro enquadrado ({type(self.enquadrador).__name__})")
+        # 4. Enlace: Enquadramento (último passo da camada de enlace)
+        bits_quadro = self.enquadrador.enquadrar(bits_com_deteccao)
+        self._log(f"TX: Enquadramento ({type(self.enquadrador).__name__}) - {len(bits_quadro)} bits")
 
-        # 6. Enlace → Física: Bytes → Bits
-        bits_quadro = Conversor.bytes_para_bits(quadro)
-        self._log(f"TX: {len(bits_quadro)} bits no quadro")
-
-        # 7. Física: Modulação
+        # 5. Física: Modulação
         sinal = self.modulador.codificar(bits_quadro)
         self._log(f"TX: Sinal modulado ({type(self.modulador).__name__}), {len(sinal)} amostras")
 

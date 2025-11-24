@@ -9,7 +9,7 @@ import queue
 from comunicacao import Transmissor, Receptor, CanalComunicacao
 from camada_fisica.modulador_digital import NRZPolar, Manchester, Bipolar
 from camada_fisica.modulador_portadora import ASK, FSK, QPSK, QAM16
-from camada_enlace.enquadrador import EnquadradorContagem, EnquadradorFlagsBytes
+from camada_enlace.enquadrador import EnquadradorContagem, EnquadradorFlagsBits
 from camada_enlace.detector_erros import DetectorParidade, DetectorChecksum, DetectorCRC32
 
 class InterfaceGrafica:
@@ -66,7 +66,7 @@ class InterfaceGrafica:
         # Enquadramento
         ttk.Label(config_frame, text="Enquadramento:").grid(row=1, column=0, sticky=tk.W)
         self.combo_enquadramento = ttk.Combobox(config_frame, width=20, state='readonly',
-                                                values=['Contagem', 'FLAGS Bytes'])
+                                                values=['Contagem', 'FLAGS Bits'])
         self.combo_enquadramento.set('Contagem')
         self.combo_enquadramento.grid(row=1, column=1, padx=5)
 
@@ -184,9 +184,9 @@ class InterfaceGrafica:
         if enq_tipo == 'Contagem':
             enquadrador_tx = EnquadradorContagem()
             enquadrador_rx = EnquadradorContagem()
-        else:  # FLAGS Bytes
-            enquadrador_tx = EnquadradorFlagsBytes()
-            enquadrador_rx = EnquadradorFlagsBytes()
+        else:  # FLAGS Bits
+            enquadrador_tx = EnquadradorFlagsBits()
+            enquadrador_rx = EnquadradorFlagsBits()
 
         # Detector
         det_tipo = self.combo_deteccao.get()

@@ -20,50 +20,22 @@ class Enquadrador(ABC):
 
 
 class EnquadradorContagem(Enquadrador):
-    """Enquadramento por contagem de caracteres"""
+    """Enquadramento por contagem"""
 
-    def enquadrar(self, dados: list) -> list:
-        tamanho = len(dados)
-        return [tamanho] + dados
-
-    def desenquadrar(self, quadro: list) -> list:
-        if len(quadro) < 1:
-            return []
-        tamanho = quadro[0]
-        return quadro[1:tamanho+1]
-
-
-class EnquadradorFlagsBytes(Enquadrador):
-    """Enquadramento com FLAGS e inserção de bytes"""
-
-    def __init__(self):
-        config = Config()
-        self.flag = config.BYTE_FLAG
-        self.esc = config.BYTE_ESC
-
-    def enquadrar(self, dados: list) -> list:
-        quadro = [self.flag]
-        for byte in dados:
-            if byte == self.flag or byte == self.esc:
-                quadro.append(self.esc)
-            quadro.append(byte)
-        quadro.append(self.flag)
-        return quadro
+    def enquadrar(self, bits: list) -> list:
+        """Adiciona tamanho (16 bits) no início"""
+        tamanho = len(bits)
+        # Tamanho em 16 bits (permite até 65535 bits)
+        tamanho_bits = [int(b) for b in format(tamanho, '016b')]
+        return tamanho_bits + bits
 
     def desenquadrar(self, quadro: list) -> list:
-        if len(quadro) < 2:
+        """Remove tamanho do início"""
+        if len(quadro) < 16:
             return []
-        dados = []
-        i = 1  # Pula FLAG inicial
-        while i < len(quadro) - 1:
-            if quadro[i] == self.esc:
-                i += 1
-                if i < len(quadro) - 1:
-                    dados.append(quadro[i])
-            else:
-                dados.append(quadro[i])
-            i += 1
-        return dados
+        tamanho_bits = quadro[:16]
+        tamanho = int(''.join(map(str, tamanho_bits)), 2)
+        return quadro[16:16+tamanho]
 
 
 class EnquadradorFlagsBits(Enquadrador):
@@ -107,3 +79,5 @@ class EnquadradorFlagsBits(Enquadrador):
                 contador_uns = 0
             i += 1
         return dados
+
+
