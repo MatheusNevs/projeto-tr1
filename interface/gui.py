@@ -8,6 +8,7 @@ import threading
 import queue
 from comunicacao import Transmissor, Receptor, CanalComunicacao
 from camada_fisica.modulador_digital import NRZPolar, Manchester, Bipolar
+from camada_fisica.modulador_portadora import ASK, FSK, QPSK, QAM16
 from camada_enlace.enquadrador import EnquadradorContagem, EnquadradorFlagsBytes
 from camada_enlace.detector_erros import DetectorParidade, DetectorChecksum, DetectorCRC32
 
@@ -47,44 +48,52 @@ class InterfaceGrafica:
         config_frame = ttk.LabelFrame(main_frame, text="Configurações", padding="10")
         config_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
 
+        # Tipo de Modulação
+        ttk.Label(config_frame, text="Tipo de Modulação:").grid(row=0, column=0, sticky=tk.W)
+        self.combo_tipo_modulacao = ttk.Combobox(config_frame, width=20, state='readonly',
+                                                 values=['Digital', 'Portadora'])
+        self.combo_tipo_modulacao.set('Digital')
+        self.combo_tipo_modulacao.grid(row=0, column=1, padx=5)
+        self.combo_tipo_modulacao.bind('<<ComboboxSelected>>', self._atualizar_opcoes_modulacao)
+
         # Modulação Digital
-        ttk.Label(config_frame, text="Modulação Digital:").grid(row=0, column=0, sticky=tk.W)
-        self.combo_modulacao = ttk.Combobox(config_frame, width=20, 
+        ttk.Label(config_frame, text="Modulação:").grid(row=0, column=2, sticky=tk.W, padx=(20,0))
+        self.combo_modulacao = ttk.Combobox(config_frame, width=20, state='readonly',
                                             values=['NRZ-Polar', 'Manchester', 'Bipolar'])
         self.combo_modulacao.set('NRZ-Polar')
-        self.combo_modulacao.grid(row=0, column=1, padx=5)
+        self.combo_modulacao.grid(row=0, column=3, padx=5)
 
         # Enquadramento
-        ttk.Label(config_frame, text="Enquadramento:").grid(row=0, column=2, sticky=tk.W, padx=(20,0))
-        self.combo_enquadramento = ttk.Combobox(config_frame, width=20,
+        ttk.Label(config_frame, text="Enquadramento:").grid(row=1, column=0, sticky=tk.W)
+        self.combo_enquadramento = ttk.Combobox(config_frame, width=20, state='readonly',
                                                 values=['Contagem', 'FLAGS Bytes'])
         self.combo_enquadramento.set('Contagem')
-        self.combo_enquadramento.grid(row=0, column=3, padx=5)
+        self.combo_enquadramento.grid(row=1, column=1, padx=5)
 
         # Detecção de Erros
-        ttk.Label(config_frame, text="Detecção:").grid(row=1, column=0, sticky=tk.W)
-        self.combo_deteccao = ttk.Combobox(config_frame, width=20,
+        ttk.Label(config_frame, text="Detecção:").grid(row=1, column=2, sticky=tk.W, padx=(20,0))
+        self.combo_deteccao = ttk.Combobox(config_frame, width=20, state='readonly',
                                            values=['Paridade', 'Checksum', 'CRC-32'])
         self.combo_deteccao.set('CRC-32')
-        self.combo_deteccao.grid(row=1, column=1, padx=5)
+        self.combo_deteccao.grid(row=1, column=3, padx=5)
 
         # Hamming
         self.var_hamming = tk.BooleanVar(value=True)
         ttk.Checkbutton(config_frame, text="Usar Código de Hamming", 
-                       variable=self.var_hamming).grid(row=1, column=2, columnspan=2, sticky=tk.W, padx=(20,0))
+                       variable=self.var_hamming).grid(row=2, column=0, columnspan=2, sticky=tk.W)
 
         # Nível de Ruído
-        ttk.Label(config_frame, text="Ruído (σ):").grid(row=2, column=0, sticky=tk.W)
-        self.slider_ruido = ttk.Scale(config_frame, from_=0, to=2, orient=tk.HORIZONTAL, length=200)
+        ttk.Label(config_frame, text="Ruído (σ):").grid(row=2, column=2, sticky=tk.W, padx=(20,0))
+        self.slider_ruido = ttk.Scale(config_frame, from_=0, to=2, orient=tk.HORIZONTAL, length=150)
         self.slider_ruido.set(0.3)
-        self.slider_ruido.grid(row=2, column=1, padx=5, sticky=(tk.W, tk.E))
+        self.slider_ruido.grid(row=2, column=3, padx=5, sticky=(tk.W, tk.E))
         self.label_ruido = ttk.Label(config_frame, text="0.3")
-        self.label_ruido.grid(row=2, column=2)
+        self.label_ruido.grid(row=2, column=4)
         self.slider_ruido.configure(command=self._atualizar_label_ruido)
 
         # Botão aplicar configurações
         ttk.Button(config_frame, text="Aplicar Configurações", 
-                  command=self._configurar_componentes).grid(row=3, column=0, columnspan=4, pady=10)
+                  command=self._configurar_componentes).grid(row=3, column=0, columnspan=5, pady=10)
 
         # === TRANSMISSÃO ===
         tx_frame = ttk.LabelFrame(main_frame, text="Transmissão", padding="10")
@@ -128,21 +137,47 @@ class InterfaceGrafica:
         """Atualiza label do slider de ruído"""
         self.label_ruido.config(text=f"{float(valor):.2f}")
 
+    def _atualizar_opcoes_modulacao(self, event=None):
+        """Atualiza as opções de modulação baseado no tipo selecionado"""
+        tipo = self.combo_tipo_modulacao.get()
+        if tipo == 'Digital':
+            self.combo_modulacao.config(values=['NRZ-Polar', 'Manchester', 'Bipolar'])
+            self.combo_modulacao.set('NRZ-Polar')
+        else:  # Portadora
+            self.combo_modulacao.config(values=['ASK', 'FSK', 'QPSK', '16-QAM'])
+            self.combo_modulacao.set('ASK')
+
     def _configurar_componentes(self):
         """Configura TX, RX e Canal com base nas seleções"""
         self._log("=== CONFIGURANDO COMPONENTES ===")
 
         # Modulador
+        tipo_mod = self.combo_tipo_modulacao.get()
         mod_tipo = self.combo_modulacao.get()
-        if mod_tipo == 'NRZ-Polar':
-            modulador_tx = NRZPolar()
-            modulador_rx = NRZPolar()
-        elif mod_tipo == 'Manchester':
-            modulador_tx = Manchester()
-            modulador_rx = Manchester()
-        else:  # Bipolar
-            modulador_tx = Bipolar()
-            modulador_rx = Bipolar()
+        
+        if tipo_mod == 'Digital':
+            if mod_tipo == 'NRZ-Polar':
+                modulador_tx = NRZPolar()
+                modulador_rx = NRZPolar()
+            elif mod_tipo == 'Manchester':
+                modulador_tx = Manchester()
+                modulador_rx = Manchester()
+            else:  # Bipolar
+                modulador_tx = Bipolar()
+                modulador_rx = Bipolar()
+        else:  # Portadora
+            if mod_tipo == 'ASK':
+                modulador_tx = ASK()
+                modulador_rx = ASK()
+            elif mod_tipo == 'FSK':
+                modulador_tx = FSK()
+                modulador_rx = FSK()
+            elif mod_tipo == 'QPSK':
+                modulador_tx = QPSK()
+                modulador_rx = QPSK()
+            else:  # 16-QAM
+                modulador_tx = QAM16()
+                modulador_rx = QAM16()
 
         # Enquadrador
         enq_tipo = self.combo_enquadramento.get()
@@ -176,6 +211,7 @@ class InterfaceGrafica:
         nivel_ruido = self.slider_ruido.get()
         self.canal.set_nivel_ruido(nivel_ruido)
 
+        self._log(f"Tipo: {tipo_mod}")
         self._log(f"Modulação: {mod_tipo}")
         self._log(f"Enquadramento: {enq_tipo}")
         self._log(f"Detecção: {det_tipo}")
