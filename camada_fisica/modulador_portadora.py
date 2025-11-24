@@ -1,7 +1,7 @@
 """
 Moduladores por portadora: ASK, FSK, QPSK, 16-QAM
-Pessoa 2: Implementar estas classes
 """
+
 from abc import ABC, abstractmethod
 import numpy as np
 from config import Config
@@ -331,7 +331,7 @@ class QAM16(ModuladorPortadora):
 
 
 # ==============================================================
-# TESTES - Pessoa 2
+# TESTES DE MODULAÇÃO POR PORTADORA
 # ==============================================================
 
 if __name__ == "__main__":

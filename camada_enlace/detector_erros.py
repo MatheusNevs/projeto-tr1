@@ -1,7 +1,7 @@
 """
 Detectores de erro: Paridade, Checksum, CRC-32
-Pessoa 3: Implementar estas classes
 """
+
 from abc import ABC, abstractmethod
 from config import Config
 
@@ -23,10 +23,6 @@ class DetectorParidade(DetectorErros):
     """Detector de paridade par"""
 
     def adicionar(self, dados: list) -> list:
-        """
-        TODO Pessoa 3: Implementar
-        Adiciona bit de paridade a cada byte
-        """
         dados_com_paridade = []
         for byte in dados:
             bits = [int(b) for b in format(byte, '08b')]
@@ -35,7 +31,6 @@ class DetectorParidade(DetectorErros):
         return dados_com_paridade
 
     def verificar(self, dados_com_paridade: list) -> tuple:
-        """TODO Pessoa 3: Implementar verificação"""
         dados = []
         tem_erro = False
         for i in range(0, len(dados_com_paridade), 2):
@@ -54,10 +49,6 @@ class DetectorChecksum(DetectorErros):
     """Detector por checksum"""
 
     def adicionar(self, dados: list) -> list:
-        """
-        TODO Pessoa 3: Implementar
-        Adiciona checksum ao final dos dados
-        """
         if len(dados) == 0:
             return [0]
         soma = sum(dados) % 256
@@ -65,7 +56,6 @@ class DetectorChecksum(DetectorErros):
         return dados + [checksum]
 
     def verificar(self, dados_com_checksum: list) -> tuple:
-        """TODO Pessoa 3: Implementar verificação"""
         if len(dados_com_checksum) < 1:
             return [], True
         dados = dados_com_checksum[:-1]
@@ -91,9 +81,6 @@ class DetectorCRC32(DetectorErros):
         ]
 
     def calcular_crc(self, dados: list) -> int:
-        """
-        TODO Pessoa 3: Implementar cálculo CRC-32
-        """
         crc = 0xFFFFFFFF
         for byte in dados:
             indice = (crc ^ byte) & 0xFF
@@ -127,3 +114,43 @@ class DetectorCRC32(DetectorErros):
         crc_calculado = self.calcular_crc(dados)
         tem_erro = (crc_recebido != crc_calculado)
         return dados, tem_erro
+
+# ==============================================================
+# TESTES - Detecção de Erros
+# ==============================================================
+
+if __name__ == "__main__":
+    # Teste Detecção
+    print("\n" + "="*70)
+    print("TESTANDO DETECÇÃO DE ERROS")
+    print("="*70)
+
+    dados = [10, 20, 30]
+    print(f"\nDados: {dados}")
+
+    # Teste Paridade
+    print("\n--- Paridade ---")
+    det1 = DetectorParidade()
+    com_par = det1.adicionar(dados)
+    print(f"Com paridade: {com_par}")
+    rec, erro = det1.verificar(com_par)
+    print(f"Erro? {erro}")
+    print(f"✓ OK" if not erro and rec == dados else "✗ ERRO")
+
+    # Teste Checksum
+    print("\n--- Checksum ---")
+    det2 = DetectorChecksum()
+    com_check = det2.adicionar(dados)
+    print(f"Com checksum: {com_check}")
+    rec, erro = det2.verificar(com_check)
+    print(f"Erro? {erro}")
+    print(f"✓ OK" if not erro and rec == dados else "✗ ERRO")
+
+    # Teste CRC-32
+    print("\n--- CRC-32 ---")
+    det3 = DetectorCRC32()
+    com_crc = det3.adicionar(dados)
+    print(f"Com CRC: {com_crc}")
+    rec, erro = det3.verificar(com_crc)
+    print(f"Erro? {erro}")
+    print(f"✓ OK" if not erro and rec == dados else "✗ ERRO")

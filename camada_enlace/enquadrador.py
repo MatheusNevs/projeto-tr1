@@ -1,7 +1,7 @@
 """
 Protocolos de enquadramento
-Pessoa 3: Implementar estas classes
 """
+
 from abc import ABC, abstractmethod
 from config import Config
 
@@ -23,15 +23,10 @@ class EnquadradorContagem(Enquadrador):
     """Enquadramento por contagem de caracteres"""
 
     def enquadrar(self, dados: list) -> list:
-        """
-        TODO Pessoa 3: Implementar
-        Formato: [tamanho][dados...]
-        """
         tamanho = len(dados)
         return [tamanho] + dados
 
     def desenquadrar(self, quadro: list) -> list:
-        """TODO Pessoa 3: Implementar desenquadramento"""
         if len(quadro) < 1:
             return []
         tamanho = quadro[0]
@@ -47,11 +42,6 @@ class EnquadradorFlagsBytes(Enquadrador):
         self.esc = config.BYTE_ESC
 
     def enquadrar(self, dados: list) -> list:
-        """
-        TODO Pessoa 3: Implementar
-        Formato: [FLAG][dados com escape][FLAG]
-        Se dados contêm FLAG ou ESC, inserir ESC antes
-        """
         quadro = [self.flag]
         for byte in dados:
             if byte == self.flag or byte == self.esc:
@@ -61,7 +51,6 @@ class EnquadradorFlagsBytes(Enquadrador):
         return quadro
 
     def desenquadrar(self, quadro: list) -> list:
-        """TODO Pessoa 3: Implementar desenquadramento"""
         if len(quadro) < 2:
             return []
         dados = []
@@ -84,10 +73,6 @@ class EnquadradorFlagsBits(Enquadrador):
         self.flag = [0, 1, 1, 1, 1, 1, 1, 0]  # 01111110
 
     def enquadrar(self, bits: list) -> list:
-        """
-        TODO Pessoa 3: Implementar bit stuffing
-        Se aparecem 5 uns consecutivos, inserir um 0
-        """
         quadro = self.flag.copy()
         contador_uns = 0
         for bit in bits:
@@ -103,7 +88,6 @@ class EnquadradorFlagsBits(Enquadrador):
         return quadro
 
     def desenquadrar(self, quadro: list) -> list:
-        """TODO Pessoa 3: Implementar destuffing"""
         tam_flag = len(self.flag)
         if len(quadro) <= 2 * tam_flag:
             return []

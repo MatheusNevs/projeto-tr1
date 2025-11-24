@@ -1,12 +1,6 @@
 """
 Corretor de erros: Código de Hamming(7,4)
-Pessoa 4: Implementação corrigida
-
-Bugfix: Corrigida incompatibilidade entre adicionar() e verificar()
-- adicionar(): cria blocos de 7 bits (não 8)
-- verificar(): agora processa blocos de 7 bits (não 8)
 """
-
 
 class CorretorHamming:
     """
@@ -220,7 +214,7 @@ class CorretorHamming:
 
 
 # ==============================================================================
-# TESTES
+# TESTES DE CÓDIGO DE HAMMING(7,4)
 # ==============================================================================
 
 if __name__ == "__main__":
