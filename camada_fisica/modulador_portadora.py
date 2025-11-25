@@ -14,6 +14,7 @@ class ModuladorPortadora(ABC):
         self.amplitude = amplitude or config.AMPLITUDE
         self.frequencia = frequencia or config.FREQUENCIA_PORTADORA
         self.taxa_amostragem = taxa or config.TAXA_AMOSTRAGEM
+        self.taxa_bits = config.TAXA_BITS
 
     @abstractmethod
     def codificar(self, bits: list) -> np.ndarray:
@@ -38,8 +39,7 @@ class ASK(ModuladorPortadora):
         amp = self.amplitude                                    # Carrega a amplitude da portadora
         freq = self.frequencia                                  # Carrega a frequência da portadora
         tx = self.taxa_amostragem                               # Carrega a taxa de amostragem (amostras/s)
-        amostras_por_bit = self.taxa_amostragem // 10           # Carrega a taxa de amostragem padrão (1000) e divide por 10
-                                                                # para ter 100 amostras por bit
+        amostras_por_bit = int(self.taxa_amostragem / self.taxa_bits)  # Calcula amostras por bit baseado na taxa de bits
 
         size = len(bits)                                        # Calcula a quantidade de bits a serem transmitidos
 
@@ -70,8 +70,7 @@ class ASK(ModuladorPortadora):
         do segmento de amostras
         """
         
-        amostras_por_bit = self.taxa_amostragem // 10           # Carrega a taxa de amostragem padrão (1000) e divide por 10
-                                                                # para ter 100 amostras por bit
+        amostras_por_bit = int(self.taxa_amostragem / self.taxa_bits)  # Calcula amostras por bit baseado na taxa de bits
 
         bits = []                                               # Array para armazenar os bits decodificados
         for i in range (0, len(sinal), amostras_por_bit):       # Loop para pegar as amostras de cada bit
@@ -99,8 +98,7 @@ class FSK(ModuladorPortadora):
         f0 = self.frequencia                                    # Carrega a frequência da portadora
         f1 = self.frequencia * 2                                # Carrega o dobro da frequência da portadora
         tx = self.taxa_amostragem                               # Carrega a taxa de amostragem (amostras/s)
-        amostras_por_bit = self.taxa_amostragem // 10           # Carrega a taxa de amostragem padrão (1000) e divide por 10
-                                                                # para ter 100 amostras por bit
+        amostras_por_bit = int(self.taxa_amostragem / self.taxa_bits)  # Calcula amostras por bit baseado na taxa de bits
 
         size = len(bits)                                        # Calcula a quantidade de bits a serem transmitidos
 
@@ -136,8 +134,7 @@ class FSK(ModuladorPortadora):
         f0 = self.frequencia                                                # Carrega a frequência da portadora
         f1 = self.frequencia * 2                                            # Carrega o dobro da frequência da portadora
         tx = self.taxa_amostragem                                           # Carrega a taxa de amostragem (amostras/s)
-        amostras_por_bit = self.taxa_amostragem // 10                       # Carrega a taxa de amostragem padrão (1000) e divide por 10
-                                                                            # para ter 100 amostras por bit
+        amostras_por_bit = int(self.taxa_amostragem / self.taxa_bits)       # Calcula amostras por bit baseado na taxa de bits
 
         bits = []                                                           # Array para armazenar os bits decodificados
         for i in range(0, len(sinal), amostras_por_bit):                    # Loop para pegar as amostras de cada bit
@@ -169,8 +166,7 @@ class QPSK(ModuladorPortadora):
         freq = self.frequencia                                              # Carrega a frequência da portadora
         tx = self.taxa_amostragem                                           # Carrega a taxa de amostragem (amostras/s)
         num_simbolos = len(bits) // 2                                       # Calcula o número de pares de bits transmitidos
-        amostras_por_simbolo = self.taxa_amostragem // 10                   # Carrega a taxa de amostragem padrão (1000) e divide por 10
-                                                                            # para ter 100 amostras por símbolo (2 bits)
+        amostras_por_simbolo = int(self.taxa_amostragem / self.taxa_bits)   # Calcula amostras por símbolo (2 bits) baseado na taxa de bits
         
         sinal = np.zeros(num_simbolos * amostras_por_simbolo)               # Cria o sinal de saída preenchido inicialmente com zeros
         t = np.arange(amostras_por_simbolo) / tx                            # O vetor t dará o instante de cada amostra na portadora (bit dura 0.1s)
@@ -202,8 +198,7 @@ class QPSK(ModuladorPortadora):
         será usada para o mapeamento
         """
 
-        amostras_por_simbolo = self.taxa_amostragem // 10                   # Carrega a taxa de amostragem padrão (1000) e divide por 10
-                                                                            # para ter 100 amostras por símbolo (2 bits)
+        amostras_por_simbolo = int(self.taxa_amostragem / self.taxa_bits)   # Calcula amostras por símbolo (2 bits) baseado na taxa de bits
         
         amp = self.amplitude                                                # Carrega a amplitude da portadora
         freq = self.frequencia                                              # Carrega a frequência da portadora
@@ -241,8 +236,7 @@ class QAM16(ModuladorPortadora):
         freq = self.frequencia                                              # Carrega a frequência da portadora
         tx = self.taxa_amostragem                                           # Carrega a taxa de amostragem (amostras/s)
         num_simbolos = len(bits) // 4                                       # Calcula a qtd de simbolos transmitidos (4 bits)
-        amostras_por_simbolo = self.taxa_amostragem // 10                   # Carrega a taxa de amostragem padrão (1000) e divide por 10
-                                                                            # para ter 100 amostras por símbolo (4 bits)
+        amostras_por_simbolo = int(self.taxa_amostragem / self.taxa_bits)   # Calcula amostras por símbolo (4 bits) baseado na taxa de bits
         
         sinal = np.zeros(amostras_por_simbolo * num_simbolos)               # Cria o sinal de saída preenchido inicialmente com zeros
         t = np.arange(amostras_por_simbolo) / tx                            # O vetor t dará o instante de cada amostra na portadora (bit dura 0.1s)
@@ -281,8 +275,7 @@ class QAM16(ModuladorPortadora):
         amp = self.amplitude                                                # Carrega a amplitude da portadora
         freq = self.frequencia                                              # Carrega a frequência da portadora
         tx = self.taxa_amostragem                                           # Carrega a taxa de amostragem (amostras/s)
-        amostras_por_simbolo = self.taxa_amostragem // 10                   # Carrega a taxa de amostragem padrão (1000) e divide por 10
-                                                                            # para ter 100 amostras por símbolo (4 bits)
+        amostras_por_simbolo = int(self.taxa_amostragem / self.taxa_bits)   # Calcula amostras por símbolo (4 bits) baseado na taxa de bits
         
         t = np.arange(amostras_por_simbolo) / tx                            # O vetor t dará o instante de cada amostra na portadora (bit dura 0.1s)
         bits = []                                                           # Lista para guardar os bits decodificados

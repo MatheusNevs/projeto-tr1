@@ -15,6 +15,7 @@ class Config:
     def _inicializar(self):
         # Camada Física
         self.TAXA_AMOSTRAGEM = 1000  # Hz
+        self.TAXA_BITS = 10  # bits por segundo
         self.FREQUENCIA_PORTADORA = 100  # Hz
         self.AMPLITUDE = 5.0  # Volts
 
@@ -37,3 +38,27 @@ class Config:
         if tamanho > 1024:
             raise ValueError("Tamanho máximo do quadro é 1024 bytes")
         self.TAMANHO_MAX_QUADRO = tamanho
+
+    def set_taxa_amostragem(self, taxa: int):
+        """Atualiza a taxa de amostragem (em Hz)"""
+        if taxa < 100:
+            raise ValueError("Taxa de amostragem mínima é 100 Hz")
+        if taxa > 10000:
+            raise ValueError("Taxa de amostragem máxima é 10000 Hz")
+        self.TAXA_AMOSTRAGEM = taxa
+
+    def set_taxa_bits(self, taxa: int):
+        """Atualiza a taxa de bits (bits por segundo)"""
+        if taxa < 1:
+            raise ValueError("Taxa de bits mínima é 1 bps")
+        if taxa > 1000:
+            raise ValueError("Taxa de bits máxima é 1000 bps")
+        self.TAXA_BITS = taxa
+
+    def set_frequencia_portadora(self, frequencia: int):
+        """Atualiza a frequência da portadora (em Hz)"""
+        if frequencia < 10:
+            raise ValueError("Frequência mínima da portadora é 10 Hz")
+        if frequencia > 1000:
+            raise ValueError("Frequência máxima da portadora é 1000 Hz")
+        self.FREQUENCIA_PORTADORA = frequencia

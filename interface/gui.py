@@ -118,7 +118,19 @@ class InterfaceGrafica:
         self.slider_ruido_desvio.configure(command=self._atualizar_label_ruido_desvio)
         ruido_desvio_frame.columnconfigure(0, weight=1)
 
-        # Linha 3: Média do Ruído (μ)
+        # Linha 3: Taxa de Amostragem e Média do Ruído (μ)
+        ttk.Label(config_frame, text="Taxa Amostragem:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        taxa_amostragem_frame = ttk.Frame(config_frame)
+        taxa_amostragem_frame.grid(row=3, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
+        self.slider_taxa_amostragem = ttk.Scale(taxa_amostragem_frame, from_=100, to=10000, orient=tk.HORIZONTAL)
+        self.slider_taxa_amostragem.set(1000)
+        self.slider_taxa_amostragem.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.label_taxa_amostragem = ttk.Label(taxa_amostragem_frame, text="1000 Hz", width=10)
+        self.label_taxa_amostragem.grid(row=0, column=1, padx=(5,0))
+        self.slider_taxa_amostragem.configure(command=self._atualizar_label_taxa_amostragem)
+        taxa_amostragem_frame.columnconfigure(0, weight=1)
+        
         ttk.Label(config_frame, text="Ruído - Média (μ):").grid(row=3, column=2, sticky=tk.W, padx=(15,0), pady=5)
         ruido_media_frame = ttk.Frame(config_frame)
         ruido_media_frame.grid(row=3, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
@@ -151,9 +163,34 @@ class InterfaceGrafica:
         self.combo_tamanho_edc.set('32 bits')
         self.combo_tamanho_edc.grid(row=4, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
 
-        # Linha 5: Botão aplicar
+        # Linha 5: Taxa de Bits e Frequência da Portadora
+        ttk.Label(config_frame, text="Taxa de Bits:").grid(row=5, column=0, sticky=tk.W, pady=5)
+        taxa_bits_frame = ttk.Frame(config_frame)
+        taxa_bits_frame.grid(row=5, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
+        self.slider_taxa_bits = ttk.Scale(taxa_bits_frame, from_=1, to=1000, orient=tk.HORIZONTAL)
+        self.slider_taxa_bits.set(10)
+        self.slider_taxa_bits.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.label_taxa_bits = ttk.Label(taxa_bits_frame, text="10 bps", width=10)
+        self.label_taxa_bits.grid(row=0, column=1, padx=(5,0))
+        self.slider_taxa_bits.configure(command=self._atualizar_label_taxa_bits)
+        taxa_bits_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(config_frame, text="Freq. Portadora:").grid(row=5, column=2, sticky=tk.W, padx=(15,0), pady=5)
+        freq_portadora_frame = ttk.Frame(config_frame)
+        freq_portadora_frame.grid(row=5, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
+        self.slider_freq_portadora = ttk.Scale(freq_portadora_frame, from_=10, to=1000, orient=tk.HORIZONTAL)
+        self.slider_freq_portadora.set(100)
+        self.slider_freq_portadora.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.label_freq_portadora = ttk.Label(freq_portadora_frame, text="100 Hz", width=10)
+        self.label_freq_portadora.grid(row=0, column=1, padx=(5,0))
+        self.slider_freq_portadora.configure(command=self._atualizar_label_freq_portadora)
+        freq_portadora_frame.columnconfigure(0, weight=1)
+
+        # Linha 6: Botão aplicar
         ttk.Button(config_frame, text="Aplicar Configurações", 
-                  command=self._configurar_componentes).grid(row=5, column=0, columnspan=4, pady=(10, 0))
+                  command=self._configurar_componentes).grid(row=6, column=0, columnspan=4, pady=(10, 0))
 
         # Configurar colunas expansíveis
         config_frame.columnconfigure(1, weight=1)
@@ -317,6 +354,21 @@ class InterfaceGrafica:
         tamanho = int(float(valor))
         self.label_tamanho_quadro.config(text=f"{tamanho} bytes")
 
+    def _atualizar_label_taxa_amostragem(self, valor):
+        """Atualiza label do slider de taxa de amostragem"""
+        taxa = int(float(valor))
+        self.label_taxa_amostragem.config(text=f"{taxa} Hz")
+
+    def _atualizar_label_taxa_bits(self, valor):
+        """Atualiza label do slider de taxa de bits"""
+        taxa = int(float(valor))
+        self.label_taxa_bits.config(text=f"{taxa} bps")
+
+    def _atualizar_label_freq_portadora(self, valor):
+        """Atualiza label do slider de frequência da portadora"""
+        freq = int(float(valor))
+        self.label_freq_portadora.config(text=f"{freq} Hz")
+
     def _atualizar_opcoes_modulacao(self, event=None):
         """Atualiza as opções de modulação baseado no tipo selecionado"""
         tipo = self.combo_tipo_modulacao.get()
@@ -331,10 +383,24 @@ class InterfaceGrafica:
         """Configura TX, RX e Canal com base nas seleções"""
         self._log("=== CONFIGURANDO COMPONENTES ===")
 
-        # PRIMEIRO: Configurar tamanho máximo do quadro (antes de criar enquadradores!)
-        tamanho_quadro = int(self.slider_tamanho_quadro.get())
+        # PRIMEIRO: Configurar parâmetros globais (antes de criar componentes!)
         from config import Config
         config = Config()
+        
+        # Taxa de amostragem
+        taxa_amostragem = int(self.slider_taxa_amostragem.get())
+        config.set_taxa_amostragem(taxa_amostragem)
+        
+        # Taxa de bits
+        taxa_bits = int(self.slider_taxa_bits.get())
+        config.set_taxa_bits(taxa_bits)
+        
+        # Frequência da portadora
+        freq_portadora = int(self.slider_freq_portadora.get())
+        config.set_frequencia_portadora(freq_portadora)
+        
+        # Tamanho máximo do quadro
+        tamanho_quadro = int(self.slider_tamanho_quadro.get())
         config.set_tamanho_max_quadro(tamanho_quadro)
 
         # Modulador
@@ -405,6 +471,11 @@ class InterfaceGrafica:
         self.canal.set_nivel_ruido(nivel_ruido_desvio)
         self.canal.set_media_ruido(nivel_ruido_media)
 
+        amostras_por_bit = int(taxa_amostragem / taxa_bits)
+        self._log(f"Taxa de Amostragem: {taxa_amostragem} Hz")
+        self._log(f"Taxa de Bits: {taxa_bits} bps")
+        self._log(f"Frequência Portadora: {freq_portadora} Hz")
+        self._log(f"Amostras por Bit: {amostras_por_bit}")
         self._log(f"Tipo: {tipo_mod}")
         self._log(f"Modulação: {mod_tipo}")
         self._log(f"Enquadramento: {enq_tipo}")

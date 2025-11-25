@@ -13,7 +13,9 @@ class ModuladorDigital(ABC):
         config = Config()
         self.amplitude = amplitude or config.AMPLITUDE
         self.taxa_amostragem = taxa or config.TAXA_AMOSTRAGEM
-        self.amostras_por_bit = self.taxa_amostragem // 10  # 100 amostras por bit
+        self.taxa_bits = config.TAXA_BITS
+        # Amostras por bit = taxa_amostragem / taxa_bits
+        self.amostras_por_bit = int(self.taxa_amostragem / self.taxa_bits)
 
     @abstractmethod
     def codificar(self, bits: list) -> np.ndarray:
