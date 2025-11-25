@@ -48,13 +48,23 @@ class DetectorParidade(DetectorErros):
         return bits, tem_erro
 
 
-class DetectorChecksum(DetectorErros):
-    """Detector por checksum"""
+class DetectorChecksumVariavel(DetectorErros):
+    """Detector por checksum com tamanho variável"""
+
+    def __init__(self, tamanho_bits: int = 8):
+        """
+        Args:
+            tamanho_bits: Tamanho do checksum em bits (8, 16, 24 ou 32)
+        """
+        if tamanho_bits not in [8, 16, 24, 32]:
+            raise ValueError("Tamanho do checksum deve ser 8, 16, 24 ou 32 bits")
+        self.tamanho_bits = tamanho_bits
+        self.max_valor = (1 << tamanho_bits) - 1  # 2^n - 1
 
     def adicionar(self, bits: list) -> list:
-        """Adiciona checksum (8 bits) aos bits"""
+        """Adiciona checksum aos bits"""
         if len(bits) == 0:
-            return [0] * 8
+            return [0] * self.tamanho_bits
         
         # Agrupa bits em bytes para calcular checksum
         soma = 0
@@ -64,19 +74,19 @@ class DetectorChecksum(DetectorErros):
                 byte_val = int(''.join(map(str, byte_bits)), 2)
                 soma += byte_val
         
-        soma = soma % 256
-        checksum = (255 - soma) % 256
-        checksum_bits = [int(b) for b in format(checksum, '08b')]
+        soma = soma % (self.max_valor + 1)
+        checksum = (self.max_valor - soma) % (self.max_valor + 1)
+        checksum_bits = [int(b) for b in format(checksum, f'0{self.tamanho_bits}b')]
         
         return bits + checksum_bits
 
     def verificar(self, bits_com_checksum: list) -> tuple:
-        """Verifica checksum e remove os 8 bits de checksum"""
-        if len(bits_com_checksum) < 8:
+        """Verifica checksum e remove os bits de checksum"""
+        if len(bits_com_checksum) < self.tamanho_bits:
             return [], True
         
-        bits = bits_com_checksum[:-8]
-        checksum_bits = bits_com_checksum[-8:]
+        bits = bits_com_checksum[:-self.tamanho_bits]
+        checksum_bits = bits_com_checksum[-self.tamanho_bits:]
         checksum_recebido = int(''.join(map(str, checksum_bits)), 2)
         
         # Calcula checksum dos bits
@@ -87,29 +97,74 @@ class DetectorChecksum(DetectorErros):
                 byte_val = int(''.join(map(str, byte_bits)), 2)
                 soma += byte_val
         
-        soma = soma % 256
-        checksum_calculado = (255 - soma) % 256
+        soma = soma % (self.max_valor + 1)
+        checksum_calculado = (self.max_valor - soma) % (self.max_valor + 1)
         tem_erro = (checksum_recebido != checksum_calculado)
         
         return bits, tem_erro
 
 
-class DetectorCRC32(DetectorErros):
-    """Detector CRC-32 (IEEE 802)"""
+class DetectorCRCVariavel(DetectorErros):
+    """Detector CRC com tamanho variável"""
 
-    def __init__(self):
-        config = Config()
-        self.polinomio = config.CRC32_POLYNOMIAL
-        self.tabela = [
-            0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA,
-            0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
-            0x0EDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988,
-            0x09B64C2B, 0x7EB17CBD, 0xE7B82D07, 0x90BF1D91
-        ]
+    def __init__(self, tamanho_bits: int = 32):
+        """
+        Args:
+            tamanho_bits: Tamanho do CRC em bits (8, 16, 24 ou 32)
+        """
+        if tamanho_bits not in [8, 16, 24, 32]:
+            raise ValueError("Tamanho do CRC deve ser 8, 16, 24 ou 32 bits")
+        self.tamanho_bits = tamanho_bits
+        
+        # Polinômios padrão para cada tamanho
+        polinomios = {
+            8: 0xD5,        # CRC-8 (0x1D5 >> 1)
+            16: 0x8005,     # CRC-16-IBM
+            24: 0x864CFB,   # CRC-24 (OpenPGP)
+            32: 0x04C11DB7  # CRC-32 (IEEE 802.3)
+        }
+        self.polinomio = polinomios[tamanho_bits]
+        self._gerar_tabela()
+
+    def _gerar_tabela(self):
+        """Gera tabela de lookup para CRC"""
+        self.tabela = []
+        for i in range(256):
+            crc = i
+            if self.tamanho_bits == 8:
+                for _ in range(8):
+                    if crc & 0x80:
+                        crc = (crc << 1) ^ self.polinomio
+                    else:
+                        crc = crc << 1
+                    crc &= 0xFF
+            elif self.tamanho_bits == 16:
+                for _ in range(8):
+                    if crc & 0x8000:
+                        crc = (crc << 1) ^ self.polinomio
+                    else:
+                        crc = crc << 1
+                    crc &= 0xFFFF
+            elif self.tamanho_bits == 24:
+                for _ in range(8):
+                    if crc & 0x800000:
+                        crc = (crc << 1) ^ self.polinomio
+                    else:
+                        crc = crc << 1
+                    crc &= 0xFFFFFF
+            else:  # 32 bits
+                crc = i << 24
+                for _ in range(8):
+                    if crc & 0x80000000:
+                        crc = (crc << 1) ^ self.polinomio
+                    else:
+                        crc = crc << 1
+                    crc &= 0xFFFFFFFF
+            self.tabela.append(crc)
 
     def calcular_crc_bits(self, bits: list) -> int:
-        """Calcula CRC-32 de uma lista de bits"""
-        # Converte bits para bytes temporariamente
+        """Calcula CRC de uma lista de bits"""
+        # Converte bits para bytes
         bytes_dados = []
         for i in range(0, len(bits), 8):
             byte_bits = bits[i:i+8]
@@ -118,28 +173,34 @@ class DetectorCRC32(DetectorErros):
                 bytes_dados.append(byte_val)
         
         # Calcula CRC
-        crc = 0xFFFFFFFF
+        max_val = (1 << self.tamanho_bits) - 1
+        crc = max_val
+        
         for byte in bytes_dados:
-            indice = (crc ^ byte) & 0xFF
-            if indice < len(self.tabela):
-                crc = (crc >> 8) ^ self.tabela[indice]
+            if self.tamanho_bits <= 16:
+                indice = (crc ^ byte) & 0xFF
+                if indice < len(self.tabela):
+                    crc = (crc >> 8) ^ self.tabela[indice]
             else:
-                crc = (crc >> 8) ^ (byte & 0xFF)
-        return crc ^ 0xFFFFFFFF
+                indice = ((crc >> (self.tamanho_bits - 8)) ^ byte) & 0xFF
+                if indice < len(self.tabela):
+                    crc = ((crc << 8) ^ self.tabela[indice]) & max_val
+        
+        return crc ^ max_val
 
     def adicionar(self, bits: list) -> list:
-        """Adiciona CRC-32 (32 bits) aos bits"""
+        """Adiciona CRC aos bits"""
         crc = self.calcular_crc_bits(bits)
-        crc_bits = [int(b) for b in format(crc, '032b')]
+        crc_bits = [int(b) for b in format(crc, f'0{self.tamanho_bits}b')]
         return bits + crc_bits
 
     def verificar(self, bits_com_crc: list) -> tuple:
-        """Verifica CRC-32 e remove os 32 bits de CRC"""
-        if len(bits_com_crc) < 32:
+        """Verifica CRC e remove os bits de CRC"""
+        if len(bits_com_crc) < self.tamanho_bits:
             return [], True
         
-        bits = bits_com_crc[:-32]
-        crc_bits = bits_com_crc[-32:]
+        bits = bits_com_crc[:-self.tamanho_bits]
+        crc_bits = bits_com_crc[-self.tamanho_bits:]
         crc_recebido = int(''.join(map(str, crc_bits)), 2)
         crc_calculado = self.calcular_crc_bits(bits)
         tem_erro = (crc_recebido != crc_calculado)
@@ -174,9 +235,9 @@ if __name__ == "__main__":
     print(f"Texto recuperado: '{texto_rec}'")
     print(f"✓ OK" if not erro and rec == bits_dados and texto_rec == texto else "✗ ERRO")
 
-    # Teste Checksum
-    print("\n--- Checksum ---")
-    det2 = DetectorChecksum()
+    # Teste Checksum Variável (8 bits)
+    print("\n--- Checksum (8 bits) ---")
+    det2 = DetectorChecksumVariavel(8)
     com_check = det2.adicionar(bits_dados)
     print(f"Com checksum ({len(com_check)} bits): {com_check}")
     rec, erro = det2.verificar(com_check)
@@ -186,9 +247,9 @@ if __name__ == "__main__":
     print(f"Texto recuperado: '{texto_rec}'")
     print(f"✓ OK" if not erro and rec == bits_dados and texto_rec == texto else "✗ ERRO")
 
-    # Teste CRC-32
-    print("\n--- CRC-32 ---")
-    det3 = DetectorCRC32()
+    # Teste CRC Variável (32 bits)
+    print("\n--- CRC (32 bits) ---")
+    det3 = DetectorCRCVariavel(32)
     com_crc = det3.adicionar(bits_dados)
     print(f"Com CRC ({len(com_crc)} bits): {com_crc}")
     rec, erro = det3.verificar(com_crc)
@@ -203,7 +264,7 @@ if __name__ == "__main__":
     print("TESTANDO DETECÇÃO COM ERRO SIMULADO")
     print("="*70)
     
-    print("\n--- CRC-32 com erro ---")
+    print("\n--- CRC (32 bits) com erro ---")
     com_crc = det3.adicionar(bits_dados)
     # Inverte um bit no meio
     com_crc_erro = com_crc.copy()

@@ -13,7 +13,8 @@ from comunicacao import Transmissor, Receptor, CanalComunicacao
 from camada_fisica.modulador_digital import NRZPolar, Manchester, Bipolar
 from camada_fisica.modulador_portadora import ASK, FSK, QPSK, QAM16
 from camada_enlace.enquadrador import EnquadradorContagem, EnquadradorFlagsBits
-from camada_enlace.detector_erros import DetectorParidade, DetectorChecksum, DetectorCRC32
+from camada_enlace.detector_erros import (DetectorParidade, DetectorChecksumVariavel, 
+                                          DetectorCRCVariavel)
 
 class InterfaceGrafica:
     """Interface gráfica principal do simulador"""
@@ -96,8 +97,8 @@ class InterfaceGrafica:
 
         ttk.Label(config_frame, text="Detecção de Erros:").grid(row=1, column=2, sticky=tk.W, padx=(15,0), pady=5)
         self.combo_deteccao = ttk.Combobox(config_frame, state='readonly',
-                                           values=['Paridade', 'Checksum', 'CRC-32'])
-        self.combo_deteccao.set('CRC-32')
+                                           values=['Paridade', 'Checksum (variável)', 'CRC (variável)'])
+        self.combo_deteccao.set('CRC (variável)')
         self.combo_deteccao.grid(row=1, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
 
         # Linha 2: Hamming e Desvio do Ruído (σ)
@@ -142,6 +143,13 @@ class InterfaceGrafica:
         self.label_tamanho_quadro.grid(row=0, column=1, padx=(5,0))
         self.slider_tamanho_quadro.configure(command=self._atualizar_label_tamanho_quadro)
         quadro_frame.columnconfigure(0, weight=1)
+
+        # Linha 4 (coluna 3-4): Tamanho do EDC
+        ttk.Label(config_frame, text="Tamanho EDC:").grid(row=4, column=2, sticky=tk.W, padx=(15,0), pady=5)
+        self.combo_tamanho_edc = ttk.Combobox(config_frame, values=['8 bits', '16 bits', '24 bits', '32 bits'], 
+                                              state='readonly', width=10)
+        self.combo_tamanho_edc.set('32 bits')
+        self.combo_tamanho_edc.grid(row=4, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
 
         # Linha 5: Botão aplicar
         ttk.Button(config_frame, text="Aplicar Configurações", 
@@ -366,17 +374,23 @@ class InterfaceGrafica:
             enquadrador_tx = EnquadradorFlagsBits()
             enquadrador_rx = EnquadradorFlagsBits()
 
-        # Detector
+        # Detector (com tamanho de EDC configurável)
         det_tipo = self.combo_deteccao.get()
+        tamanho_edc_str = self.combo_tamanho_edc.get()
+        tamanho_edc = int(tamanho_edc_str.split()[0])  # Extrai número de "8 bits" -> 8
+        
         if det_tipo == 'Paridade':
+            # Paridade não tem tamanho configurável (sempre 1 bit por byte)
             detector_tx = DetectorParidade()
             detector_rx = DetectorParidade()
-        elif det_tipo == 'Checksum':
-            detector_tx = DetectorChecksum()
-            detector_rx = DetectorChecksum()
-        else:  # CRC-32
-            detector_tx = DetectorCRC32()
-            detector_rx = DetectorCRC32()
+        elif det_tipo == 'Checksum (variável)':
+            # Usa checksum variável
+            detector_tx = DetectorChecksumVariavel(tamanho_edc)
+            detector_rx = DetectorChecksumVariavel(tamanho_edc)
+        else:  # CRC (variável)
+            # Usa CRC variável
+            detector_tx = DetectorCRCVariavel(tamanho_edc)
+            detector_rx = DetectorCRCVariavel(tamanho_edc)
 
         # Hamming
         usar_hamming = self.var_hamming.get()
@@ -394,7 +408,13 @@ class InterfaceGrafica:
         self._log(f"Tipo: {tipo_mod}")
         self._log(f"Modulação: {mod_tipo}")
         self._log(f"Enquadramento: {enq_tipo}")
-        self._log(f"Detecção: {det_tipo}")
+        
+        # Log de detecção - só mostra tamanho EDC se não for Paridade
+        if det_tipo == 'Paridade':
+            self._log(f"Detecção: {det_tipo} (1 bit por byte)")
+        else:
+            self._log(f"Detecção: {det_tipo} (EDC: {tamanho_edc} bits)")
+        
         self._log(f"Hamming: {'Sim' if usar_hamming else 'Não'}")
         self._log(f"Ruído: μ={nivel_ruido_media:.2f}, σ={nivel_ruido_desvio:.2f}")
         self._log(f"Tamanho Máx. Quadro: {tamanho_quadro} bytes ({tamanho_quadro * 8} bits)")
