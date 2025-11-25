@@ -32,3 +32,7 @@ class CanalComunicacao:
     def set_nivel_ruido(self, nivel: float):
         """Ajusta nível de ruído (desvio padrão)"""
         self.nivel_ruido = nivel
+
+    def set_media_ruido(self, media: float):
+        """Ajusta média do ruído"""
+        self.ruido_media = media

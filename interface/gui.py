@@ -100,26 +100,39 @@ class InterfaceGrafica:
         self.combo_deteccao.set('CRC-32')
         self.combo_deteccao.grid(row=1, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
 
-        # Linha 2: Hamming e Ruído
+        # Linha 2: Hamming e Desvio do Ruído (σ)
         self.var_hamming = tk.BooleanVar(value=True)
         ttk.Checkbutton(config_frame, text="Usar Código de Hamming", 
                        variable=self.var_hamming).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=5)
 
-        ttk.Label(config_frame, text="Nível de Ruído (σ):").grid(row=2, column=2, sticky=tk.W, padx=(15,0), pady=5)
-        ruido_frame = ttk.Frame(config_frame)
-        ruido_frame.grid(row=2, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
+        ttk.Label(config_frame, text="Ruído - Desvio (σ):").grid(row=2, column=2, sticky=tk.W, padx=(15,0), pady=5)
+        ruido_desvio_frame = ttk.Frame(config_frame)
+        ruido_desvio_frame.grid(row=2, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
         
-        self.slider_ruido = ttk.Scale(ruido_frame, from_=0, to=2, orient=tk.HORIZONTAL)
-        self.slider_ruido.set(0.3)
-        self.slider_ruido.grid(row=0, column=0, sticky=(tk.W, tk.E))
-        self.label_ruido = ttk.Label(ruido_frame, text="0.3", width=5)
-        self.label_ruido.grid(row=0, column=1, padx=(5,0))
-        self.slider_ruido.configure(command=self._atualizar_label_ruido)
-        ruido_frame.columnconfigure(0, weight=1)
+        self.slider_ruido_desvio = ttk.Scale(ruido_desvio_frame, from_=0, to=2, orient=tk.HORIZONTAL)
+        self.slider_ruido_desvio.set(0.3)
+        self.slider_ruido_desvio.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.label_ruido_desvio = ttk.Label(ruido_desvio_frame, text="0.30", width=5)
+        self.label_ruido_desvio.grid(row=0, column=1, padx=(5,0))
+        self.slider_ruido_desvio.configure(command=self._atualizar_label_ruido_desvio)
+        ruido_desvio_frame.columnconfigure(0, weight=1)
 
-        # Linha 3: Botão aplicar
+        # Linha 3: Média do Ruído (μ)
+        ttk.Label(config_frame, text="Ruído - Média (μ):").grid(row=3, column=2, sticky=tk.W, padx=(15,0), pady=5)
+        ruido_media_frame = ttk.Frame(config_frame)
+        ruido_media_frame.grid(row=3, column=3, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
+        self.slider_ruido_media = ttk.Scale(ruido_media_frame, from_=-1, to=1, orient=tk.HORIZONTAL)
+        self.slider_ruido_media.set(0.0)
+        self.slider_ruido_media.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.label_ruido_media = ttk.Label(ruido_media_frame, text="0.00", width=5)
+        self.label_ruido_media.grid(row=0, column=1, padx=(5,0))
+        self.slider_ruido_media.configure(command=self._atualizar_label_ruido_media)
+        ruido_media_frame.columnconfigure(0, weight=1)
+
+        # Linha 4: Botão aplicar
         ttk.Button(config_frame, text="Aplicar Configurações", 
-                  command=self._configurar_componentes).grid(row=3, column=0, columnspan=4, pady=(10, 0))
+                  command=self._configurar_componentes).grid(row=4, column=0, columnspan=4, pady=(10, 0))
 
         # Configurar colunas expansíveis
         config_frame.columnconfigure(1, weight=1)
@@ -270,9 +283,13 @@ class InterfaceGrafica:
         aba_espectro.columnconfigure(0, weight=1)
         aba_espectro.rowconfigure(0, weight=1)
 
-    def _atualizar_label_ruido(self, valor):
-        """Atualiza label do slider de ruído"""
-        self.label_ruido.config(text=f"{float(valor):.2f}")
+    def _atualizar_label_ruido_desvio(self, valor):
+        """Atualiza label do slider de desvio do ruído"""
+        self.label_ruido_desvio.config(text=f"{float(valor):.2f}")
+
+    def _atualizar_label_ruido_media(self, valor):
+        """Atualiza label do slider de média do ruído"""
+        self.label_ruido_media.config(text=f"{float(valor):.2f}")
 
     def _atualizar_opcoes_modulacao(self, event=None):
         """Atualiza as opções de modulação baseado no tipo selecionado"""
@@ -344,16 +361,18 @@ class InterfaceGrafica:
         self.transmissor = Transmissor(modulador_tx, enquadrador_tx, detector_tx, usar_hamming)
         self.receptor = Receptor(modulador_rx, enquadrador_rx, detector_rx, usar_hamming)
 
-        # Configurar canal
-        nivel_ruido = self.slider_ruido.get()
-        self.canal.set_nivel_ruido(nivel_ruido)
+        # Configurar canal (desvio e média do ruído)
+        nivel_ruido_desvio = self.slider_ruido_desvio.get()
+        nivel_ruido_media = self.slider_ruido_media.get()
+        self.canal.set_nivel_ruido(nivel_ruido_desvio)
+        self.canal.set_media_ruido(nivel_ruido_media)
 
         self._log(f"Tipo: {tipo_mod}")
         self._log(f"Modulação: {mod_tipo}")
         self._log(f"Enquadramento: {enq_tipo}")
         self._log(f"Detecção: {det_tipo}")
         self._log(f"Hamming: {'Sim' if usar_hamming else 'Não'}")
-        self._log(f"Ruído: σ={nivel_ruido:.2f}")
+        self._log(f"Ruído: μ={nivel_ruido_media:.2f}, σ={nivel_ruido_desvio:.2f}")
         self._log("Configuração concluída!\n")
 
     def _transmitir(self):
@@ -368,8 +387,9 @@ class InterfaceGrafica:
             self._log("ERRO: Configure os componentes primeiro!")
             return
 
-        # Atualiza nível de ruído
-        self.canal.set_nivel_ruido(self.slider_ruido.get())
+        # Atualiza parâmetros de ruído
+        self.canal.set_nivel_ruido(self.slider_ruido_desvio.get())
+        self.canal.set_media_ruido(self.slider_ruido_media.get())
 
         # Executa transmissão
         self.label_status.config(text="Transmitindo...")
