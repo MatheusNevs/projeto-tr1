@@ -50,6 +50,9 @@ class Transmissor:
 
         Returns:
             Sinal modulado pronto para canal
+            
+        Raises:
+            ValueError: Se o quadro exceder o tamanho máximo configurado
         """
         self._log(f"TX: Mensagem original: '{mensagem}'")
 
@@ -70,8 +73,13 @@ class Transmissor:
         self._log(f"TX: Detecção aplicada ({type(self.detector_erros).__name__}) - {len(bits_com_deteccao)} bits")
 
         # 4. Enlace: Enquadramento (último passo da camada de enlace)
-        bits_quadro = self.enquadrador.enquadrar(bits_com_deteccao)
-        self._log(f"TX: Enquadramento ({type(self.enquadrador).__name__}) - {len(bits_quadro)} bits")
+        try:
+            bits_quadro = self.enquadrador.enquadrar(bits_com_deteccao)
+            self._log(f"TX: Enquadramento ({type(self.enquadrador).__name__}) - {len(bits_quadro)} bits")
+        except ValueError as e:
+            erro_msg = f"ERRO: {str(e)}. Tente uma mensagem menor."
+            self._log(erro_msg)
+            raise ValueError(erro_msg) from e
 
         # 5. Física: Modulação
         sinal = self.modulador.codificar(bits_quadro)

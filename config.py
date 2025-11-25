@@ -29,3 +29,11 @@ class Config:
 
         # CRC
         self.CRC32_POLYNOMIAL = 0x04C11DB7
+
+    def set_tamanho_max_quadro(self, tamanho: int):
+        """Atualiza o tamanho máximo do quadro (em bytes)"""
+        if tamanho < 64:
+            raise ValueError("Tamanho mínimo do quadro é 64 bytes")
+        if tamanho > 1024:
+            raise ValueError("Tamanho máximo do quadro é 1024 bytes")
+        self.TAMANHO_MAX_QUADRO = tamanho

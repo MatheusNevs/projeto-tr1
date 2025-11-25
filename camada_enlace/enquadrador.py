@@ -22,9 +22,18 @@ class Enquadrador(ABC):
 class EnquadradorContagem(Enquadrador):
     """Enquadramento por contagem"""
 
+    def __init__(self):
+        config = Config()
+        self.tamanho_max_quadro = config.TAMANHO_MAX_QUADRO * 8  # converter bytes para bits
+
     def enquadrar(self, bits: list) -> list:
         """Adiciona tamanho (16 bits) no início"""
         tamanho = len(bits)
+        
+        # Verificar se excede tamanho máximo
+        if tamanho > self.tamanho_max_quadro:
+            raise ValueError(f"Quadro muito grande: {tamanho} bits > {self.tamanho_max_quadro} bits (máx: {self.tamanho_max_quadro//8} bytes)")
+        
         # Tamanho em 16 bits (permite até 65535 bits)
         tamanho_bits = [int(b) for b in format(tamanho, '016b')]
         return tamanho_bits + bits
@@ -42,9 +51,15 @@ class EnquadradorFlagsBits(Enquadrador):
     """Enquadramento com FLAGS e inserção de bits (bit stuffing)"""
 
     def __init__(self):
+        config = Config()
         self.flag = [0, 1, 1, 1, 1, 1, 1, 0]  # 01111110
+        self.tamanho_max_quadro = config.TAMANHO_MAX_QUADRO * 8  # converter bytes para bits
 
     def enquadrar(self, bits: list) -> list:
+        # Verificar se excede tamanho máximo (antes do bit stuffing)
+        if len(bits) > self.tamanho_max_quadro:
+            raise ValueError(f"Quadro muito grande: {len(bits)} bits > {self.tamanho_max_quadro} bits (máx: {self.tamanho_max_quadro//8} bytes)")
+        
         quadro = self.flag.copy()
         contador_uns = 0
         for bit in bits:

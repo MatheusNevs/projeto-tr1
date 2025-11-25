@@ -3,7 +3,7 @@ Interface Gráfica com Tkinter
 Thread separada para receptor
 """
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox
 import threading
 import queue
 import numpy as np
@@ -130,9 +130,22 @@ class InterfaceGrafica:
         self.slider_ruido_media.configure(command=self._atualizar_label_ruido_media)
         ruido_media_frame.columnconfigure(0, weight=1)
 
-        # Linha 4: Botão aplicar
+        # Linha 4: Tamanho Máximo do Quadro
+        ttk.Label(config_frame, text="Tamanho Máx. Quadro:").grid(row=4, column=0, sticky=tk.W, pady=5)
+        quadro_frame = ttk.Frame(config_frame)
+        quadro_frame.grid(row=4, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
+        self.slider_tamanho_quadro = ttk.Scale(quadro_frame, from_=64, to=1024, orient=tk.HORIZONTAL)
+        self.slider_tamanho_quadro.set(256)
+        self.slider_tamanho_quadro.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        self.label_tamanho_quadro = ttk.Label(quadro_frame, text="256 bytes", width=10)
+        self.label_tamanho_quadro.grid(row=0, column=1, padx=(5,0))
+        self.slider_tamanho_quadro.configure(command=self._atualizar_label_tamanho_quadro)
+        quadro_frame.columnconfigure(0, weight=1)
+
+        # Linha 5: Botão aplicar
         ttk.Button(config_frame, text="Aplicar Configurações", 
-                  command=self._configurar_componentes).grid(row=4, column=0, columnspan=4, pady=(10, 0))
+                  command=self._configurar_componentes).grid(row=5, column=0, columnspan=4, pady=(10, 0))
 
         # Configurar colunas expansíveis
         config_frame.columnconfigure(1, weight=1)
@@ -291,6 +304,11 @@ class InterfaceGrafica:
         """Atualiza label do slider de média do ruído"""
         self.label_ruido_media.config(text=f"{float(valor):.2f}")
 
+    def _atualizar_label_tamanho_quadro(self, valor):
+        """Atualiza label do slider de tamanho máximo do quadro"""
+        tamanho = int(float(valor))
+        self.label_tamanho_quadro.config(text=f"{tamanho} bytes")
+
     def _atualizar_opcoes_modulacao(self, event=None):
         """Atualiza as opções de modulação baseado no tipo selecionado"""
         tipo = self.combo_tipo_modulacao.get()
@@ -304,6 +322,12 @@ class InterfaceGrafica:
     def _configurar_componentes(self):
         """Configura TX, RX e Canal com base nas seleções"""
         self._log("=== CONFIGURANDO COMPONENTES ===")
+
+        # PRIMEIRO: Configurar tamanho máximo do quadro (antes de criar enquadradores!)
+        tamanho_quadro = int(self.slider_tamanho_quadro.get())
+        from config import Config
+        config = Config()
+        config.set_tamanho_max_quadro(tamanho_quadro)
 
         # Modulador
         tipo_mod = self.combo_tipo_modulacao.get()
@@ -333,7 +357,7 @@ class InterfaceGrafica:
                 modulador_tx = QAM16()
                 modulador_rx = QAM16()
 
-        # Enquadrador
+        # Enquadrador (agora criado DEPOIS de atualizar o tamanho máximo)
         enq_tipo = self.combo_enquadramento.get()
         if enq_tipo == 'Contagem':
             enquadrador_tx = EnquadradorContagem()
@@ -357,7 +381,7 @@ class InterfaceGrafica:
         # Hamming
         usar_hamming = self.var_hamming.get()
 
-        # Criar transmissor e receptor
+        # Criar transmissor e receptor (já com novo tamanho máximo)
         self.transmissor = Transmissor(modulador_tx, enquadrador_tx, detector_tx, usar_hamming)
         self.receptor = Receptor(modulador_rx, enquadrador_rx, detector_rx, usar_hamming)
 
@@ -373,6 +397,7 @@ class InterfaceGrafica:
         self._log(f"Detecção: {det_tipo}")
         self._log(f"Hamming: {'Sim' if usar_hamming else 'Não'}")
         self._log(f"Ruído: μ={nivel_ruido_media:.2f}, σ={nivel_ruido_desvio:.2f}")
+        self._log(f"Tamanho Máx. Quadro: {tamanho_quadro} bytes ({tamanho_quadro * 8} bits)")
         self._log("Configuração concluída!\n")
 
     def _transmitir(self):
@@ -441,11 +466,22 @@ class InterfaceGrafica:
             # Atualizar gráficos
             self.root.after(0, self._atualizar_graficos)
 
+        except ValueError as e:
+            # Erro específico de validação (ex: quadro muito grande)
+            erro_str = str(e)
+            self._log(f"\n{erro_str}")
+            self.root.after(0, lambda: self.label_status.config(text="Erro - Mensagem muito grande!"))
+            self.root.after(0, lambda: messagebox.showerror(
+                "Mensagem muito grande",
+                f"{erro_str}\n\nDica: Tente uma mensagem menor ou desative o código Hamming."
+            ))
         except Exception as e:
+            # Outros erros inesperados
             self._log(f"\nERRO DURANTE TRANSMISSÃO: {e}")
             import traceback
             self._log(traceback.format_exc())
             self.root.after(0, lambda: self.label_status.config(text="Erro!"))
+            self.root.after(0, lambda: messagebox.showerror("Erro", f"Erro inesperado: {e}"))
 
     def _log(self, mensagem):
         """Adiciona mensagem aos logs (thread-safe)"""
