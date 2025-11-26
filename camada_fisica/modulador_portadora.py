@@ -69,19 +69,30 @@ class ASK(ModuladorPortadora):
         Implementar decodificação ASK baseada no cálculo da energia
         do segmento de amostras
         """
-        
         amostras_por_bit = int(self.taxa_amostragem / self.taxa_bits)  # Calcula amostras por bit baseado na taxa de bits
 
-        bits = []                                               # Array para armazenar os bits decodificados
-        for i in range (0, len(sinal), amostras_por_bit):       # Loop para pegar as amostras de cada bit
-            segmento_amostras = sinal[i:i + amostras_por_bit]   # Segmenta o trecho de todas as amostras de um bit
+        # Protege contra casos estranhos (divisão por zero)
+        if amostras_por_bit <= 0:
+            return []
 
-            energia = np.sum(segmento_amostras ** 2)            # Calcula a energia total das amostras
-            if energia > 0.1:                                   # Se a energia é maior que 0.1 (limiar para cobrir ruídos),
-                bits.append(1)                                  # o bit decodificado é 1
-            else:                                               # Se a energia é menor que 0.1,
-                bits.append(0)                                  # o bit decodificado é 0
-        
+        bits = []  # Array para armazenar os bits decodificados
+
+        # Calcular um limiar adaptativo baseado na energia máxima esperada
+        # Energia máxima aproximada para um bit 1: amp^2 * amostras_por_bit * 0.5
+        # (valor médio de sin^2 é 0.5). Usamos uma fração desse valor como limiar.
+        energia_max_esperada = (self.amplitude ** 2) * amostras_por_bit * 0.5
+        limiar = energia_max_esperada * 0.25  # 25% da energia máxima esperada
+
+        for i in range(0, len(sinal), amostras_por_bit):  # Loop para pegar as amostras de cada bit
+            segmento_amostras = sinal[i:i + amostras_por_bit]  # Segmenta o trecho de todas as amostras de um bit
+
+            energia = np.sum(segmento_amostras ** 2)  # Calcula a energia total das amostras
+            # Usa limiar adaptativo em vez de um valor fixo
+            if energia > limiar:
+                bits.append(1)
+            else:
+                bits.append(0)
+
         return bits
 
 
@@ -235,9 +246,16 @@ class QAM16(ModuladorPortadora):
         amp = self.amplitude                                                # Carrega a amplitude da portadora
         freq = self.frequencia                                              # Carrega a frequência da portadora
         tx = self.taxa_amostragem                                           # Carrega a taxa de amostragem (amostras/s)
-        num_simbolos = len(bits) // 4                                       # Calcula a qtd de simbolos transmitidos (4 bits)
-        amostras_por_simbolo = int(self.taxa_amostragem / self.taxa_bits)   # Calcula amostras por símbolo (4 bits) baseado na taxa de bits
-        
+        # Garantir que o número de bits seja múltiplo de 4 (padding com zeros se necessário)
+        pad = (4 - (len(bits) % 4)) % 4
+        if pad:
+            bits_local = bits + [0] * pad
+        else:
+            bits_local = bits
+
+        num_simbolos = len(bits_local) // 4                                   # Calcula a qtd de simbolos transmitidos (4 bits)
+        amostras_por_simbolo = int(self.taxa_amostragem / self.taxa_bits)     # Calcula amostras por símbolo (4 bits) baseado na taxa de bits
+
         sinal = np.zeros(amostras_por_simbolo * num_simbolos)               # Cria o sinal de saída preenchido inicialmente com zeros
         t = np.arange(amostras_por_simbolo) / tx                            # O vetor t dará o instante de cada amostra na portadora (bit dura 0.1s)
         mapa_niveis = {
@@ -249,19 +267,18 @@ class QAM16(ModuladorPortadora):
         ref_I = np.cos(2 * np.pi * freq * t)                                # Portadora I (cos)
         ref_Q = -np.sin(2 * np.pi * freq * t)                               # Portadora Q (-sen)
 
-        for i in range (0, len(bits), 4):                                   # Loop de 4 em 4 (1 simbolo)                             
-            if i + 3 < len(bits):                                           # Verifica se não ultrapassará os índices
-                par_bits_I = (bits[i], bits[i + 1])                         # Os primeiros 2 bits determinam a amplitude a portadora I
-                par_bits_Q = (bits[i + 2], bits[i + 3])                     # Os últimos 2 bits determinam a amplitude da portadora Q
-                nivel_I = mapa_niveis[par_bits_I]                           # Mapeia o nível de I
-                nivel_Q = mapa_niveis[par_bits_Q]                           # Mapeia o nível de Q
-                onda_simbolo = (nivel_I * ref_I) + (nivel_Q * ref_Q)        # Cria a onda do simbolo de acordo com as referências e
+        for i in range(0, len(bits_local), 4):                              # Loop de 4 em 4 (1 simbolo)
+            par_bits_I = (bits_local[i], bits_local[i + 1])                  # Os primeiros 2 bits determinam a amplitude a portadora I
+            par_bits_Q = (bits_local[i + 2], bits_local[i + 3])              # Os últimos 2 bits determinam a amplitude da portadora Q
+            nivel_I = mapa_niveis[par_bits_I]                               # Mapeia o nível de I
+            nivel_Q = mapa_niveis[par_bits_Q]                               # Mapeia o nível de Q
+            onda_simbolo = (nivel_I * ref_I) + (nivel_Q * ref_Q)            # Cria a onda do simbolo de acordo com as referências e
                                                                             # as amplitudes descobertas
- 
-                index_simbolo = i // 4                                      # Cria contador de 1 em 1 para usar como índice
-                start = index_simbolo * amostras_por_simbolo                # Início da lista de amostras
-                end = (index_simbolo + 1) * amostras_por_simbolo            # Fim da lista de amostras
-                sinal[start:end] = onda_simbolo                             # Preenche o sinal final com os resultados obtidos
+
+            index_simbolo = i // 4                                          # Cria contador de 1 em 1 para usar como índice
+            start = index_simbolo * amostras_por_simbolo                    # Início da lista de amostras
+            end = (index_simbolo + 1) * amostras_por_simbolo                # Fim da lista de amostras
+            sinal[start:end] = onda_simbolo                                 # Preenche o sinal final com os resultados obtidos
         
         return sinal
 
