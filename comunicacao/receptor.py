@@ -1,5 +1,60 @@
 """
-Classe Receptor - coordena as camadas na recepção
+Módulo Receptor - Coordenação do Pipeline de Recepção.
+
+O Receptor orquestra todas as etapas de recepção e processamento de
+um sinal, coordenando as diferentes camadas em ordem inversa à transmissão:
+
+Pipeline de Recepção (ordem inversa ao TX):
+    1. Física (Demodulação): Sinal analógico → Bits
+    2. Enlace (Desenquadramento): Remove delimitadores
+    3. Enlace (Detecção): Verifica EDC, detecta erros
+    4. Enlace (Correção): Hamming, corrige erros (opcional)
+    5. Aplicação: Bits → Texto
+
+Classes:
+    Receptor: Orquestra o pipeline completo de recepção.
+
+Responsabilidades:
+    - Demodular sinal recebido
+    - Remover enquadramento
+    - Detectar presença de erros
+    - Corrigir erros quando possível (Hamming)
+    - Reconstruir mensagem original
+    - Logging de cada etapa
+    - Fornecer estatísticas (erros detectados/corrigidos)
+
+Fluxo de Dados (inverso ao TX):
+    Sinal (np.ndarray)
+        ↓ Modulador.decodificar()
+    Quadro (list de bits)
+        ↓ Enquadrador.desenquadrar()
+    Bits+EDC (list)
+        ↓ DetectorErros.verificar()
+    Bits+Hamming (list) + flag erro_detectado
+        ↓ CorretorHamming.verificar() (opcional)
+    Bits (list) + contador erros_corrigidos
+        ↓ Conversor.bits_para_texto()
+    Texto (str)
+
+Informações de Status:
+    - erro_detectado (bool): Flag se EDC detectou erro
+    - erros_corrigidos (int): Quantos erros Hamming corrigiu
+    - historico (list): Log detalhado de cada etapa
+
+Exemplos:
+    >>> from camada_fisica.modulador_digital import NRZPolar
+    >>> from camada_enlace.enquadrador import EnquadradorContagem
+    >>> from camada_enlace.detector_erros import DetectorParidade
+    >>> 
+    >>> rx = Receptor(
+    ...     modulador=NRZPolar(),
+    ...     enquadrador=EnquadradorContagem(),
+    ...     detector_erros=DetectorParidade(),
+    ...     usar_hamming=True
+    ... )
+    >>> mensagem = rx.receber(sinal_recebido)
+    >>> print(f"Erro detectado: {rx.erro_detectado}")
+    >>> print(f"Erros corrigidos: {rx.erros_corrigidos}")
 """
 from utils.conversor import Conversor
 from camada_fisica.modulador_digital import ModuladorDigital
@@ -10,7 +65,33 @@ import numpy as np
 
 class Receptor:
     """
-    Coordena o processo de recepção através das camadas
+    Coordena o processo de recepção através das camadas.
+    
+    Implementa o pipeline completo de recepção em ordem inversa à transmissão,
+    desde demodulação do sinal até reconstrução do texto original, passando
+    por detecção e correção de erros.
+    
+    Attributes:
+        modulador (ModuladorDigital): Demodulador para camada física.
+        enquadrador (Enquadrador): Desenquadrador para camada de enlace.
+        detector_erros (DetectorErros): Detector de erros (EDC).
+        usar_hamming (bool): Se True, aplica código de Hamming.
+        corretor (CorretorHamming): Corretor Hamming (se usar_hamming=True).
+        historico (list): Log de operações para debug.
+        erro_detectado (bool): Flag indicando se EDC detectou erro.
+        erros_corrigidos (int): Contador de erros corrigidos pelo Hamming.
+    
+    Pipeline Completo:
+        sinal → bits → quadro → edc → hamming → texto
+    
+    Diferença TX vs RX:
+        - TX: Adiciona proteção (hamming, edc, quadro)
+        - RX: Remove proteção na ordem inversa (quadro, edc, hamming)
+    
+    Comportamento com Erros:
+        - EDC detecta → flag erro_detectado = True, mas continua processando
+        - Hamming corrige → incrementa erros_corrigidos, tenta recuperar dados
+        - Se erro não corrigível → dados podem estar corrompidos
     """
 
     def __init__(self, 
@@ -19,11 +100,37 @@ class Receptor:
                  detector_erros: DetectorErros,
                  usar_hamming: bool = True):
         """
+        Inicializa receptor com componentes das camadas.
+        
         Args:
-            modulador: Mesma instância/tipo do transmissor
-            enquadrador: Mesma instância/tipo do transmissor
-            detector_erros: Mesma instância/tipo do transmissor
-            usar_hamming: Se deve usar correção de erros Hamming
+            modulador (ModuladorDigital): Mesmo tipo usado no transmissor
+                (NRZPolar, Manchester, Bipolar, ASK, FSK, QPSK, QAM16).
+            enquadrador (Enquadrador): Mesmo tipo usado no transmissor
+                (Contagem, FlagsBits).
+            detector_erros (DetectorErros): Mesmo tipo usado no transmissor
+                (Paridade, Checksum, CRC).
+            usar_hamming (bool): Se True, aplica correção de Hamming.
+                Deve ser igual ao valor usado no transmissor.
+        
+        Notas:
+            - Componentes devem ser compatíveis com os do transmissor
+            - CorretorHamming é criado automaticamente se usar_hamming=True
+            - Histórico e contadores são resetados na criação
+        
+        Importante:
+            Receptor e Transmissor devem usar os MESMOS componentes:
+            - Mesmo tipo de modulador
+            - Mesmo tipo de enquadrador
+            - Mesmo tipo de detector
+            - Mesmo valor de usar_hamming
+        
+        Exemplos:
+            >>> rx = Receptor(
+            ...     modulador=NRZPolar(amplitude=5.0),
+            ...     enquadrador=EnquadradorContagem(),
+            ...     detector_erros=DetectorCRCVariavel(32),
+            ...     usar_hamming=True
+            ... )
         """
         self.modulador = modulador
         self.enquadrador = enquadrador

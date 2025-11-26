@@ -1,5 +1,52 @@
 """
-Classe Transmissor - coordena as camadas no envio
+Módulo Transmissor - Coordenação do Pipeline de Transmissão.
+
+O Transmissor orquestra todas as etapas de preparação e transmissão de
+uma mensagem, coordenando as diferentes camadas do modelo de comunicação:
+
+Pipeline de Transmissão (ordem correta):
+    1. Aplicação: Texto → Bits
+    2. Enlace (Correção): Hamming (opcional)
+    3. Enlace (Detecção): Adiciona EDC (Paridade/Checksum/CRC)
+    4. Enlace (Enquadramento): Adiciona delimitadores
+    5. Física (Modulação): Bits → Sinal analógico
+
+Classes:
+    Transmissor: Orquestra o pipeline completo de transmissão.
+
+Responsabilidades:
+    - Coordenar sequência correta das operações
+    - Logging de cada etapa para debug
+    - Validar tamanhos e limites
+    - Propagar exceções adequadamente
+
+Fluxo de Dados:
+    Texto (str)
+        ↓ Conversor
+    Bits (list)
+        ↓ CorretorHamming (opcional)
+    Bits+Hamming (list)
+        ↓ DetectorErros
+    Bits+EDC (list)
+        ↓ Enquadrador
+    Quadro (list de bits)
+        ↓ Modulador
+    Sinal (np.ndarray)
+
+Exemplos:
+    >>> from camada_fisica.modulador_digital import NRZPolar
+    >>> from camada_enlace.enquadrador import EnquadradorContagem
+    >>> from camada_enlace.detector_erros import DetectorParidade
+    >>> 
+    >>> tx = Transmissor(
+    ...     modulador=NRZPolar(),
+    ...     enquadrador=EnquadradorContagem(),
+    ...     detector_erros=DetectorParidade(),
+    ...     usar_hamming=True
+    ... )
+    >>> sinal = tx.transmitir("Olá")
+    >>> print(type(sinal))
+    <class 'numpy.ndarray'>
 """
 from utils.conversor import Conversor
 from camada_fisica.modulador_digital import ModuladorDigital
@@ -10,7 +57,27 @@ import numpy as np
 
 class Transmissor:
     """
-    Coordena o processo de transmissão através das camadas
+    Coordena o processo de transmissão através das camadas.
+    
+    Implementa o pipeline completo de transmissão, desde conversão de
+    texto até geração do sinal modulado, passando por todas as etapas
+    de proteção e enquadramento.
+    
+    Attributes:
+        modulador (ModuladorDigital): Modulador para camada física.
+        enquadrador (Enquadrador): Enquadrador para camada de enlace.
+        detector_erros (DetectorErros): Detector de erros (EDC).
+        usar_hamming (bool): Se True, aplica código de Hamming.
+        corretor (CorretorHamming): Corretor Hamming (se usar_hamming=True).
+        historico (list): Log de operações para debug.
+    
+    Pipeline Completo:
+        texto → bits → hamming → edc → quadro → sinal
+    
+    Tratamento de Erros:
+        - ValueError: Mensagem muito grande para quadro
+        - Propaga exceções das camadas inferiores
+        - Logs detalhados para debug
     """
 
     def __init__(self, 
@@ -19,11 +86,30 @@ class Transmissor:
                  detector_erros: DetectorErros,
                  usar_hamming: bool = True):
         """
+        Inicializa transmissor com componentes das camadas.
+        
         Args:
-            modulador: Instância de modulador digital
-            enquadrador: Instância de enquadrador
-            detector_erros: Instância de detector de erros
-            usar_hamming: Se deve usar correção de erros Hamming
+            modulador (ModuladorDigital): Modulador da camada física
+                (NRZPolar, Manchester, Bipolar, ASK, FSK, QPSK, QAM16).
+            enquadrador (Enquadrador): Protocolo de enquadramento
+                (Contagem, FlagsBits).
+            detector_erros (DetectorErros): Detector de erros
+                (Paridade, Checksum, CRC).
+            usar_hamming (bool): Se True, aplica correção de Hamming.
+                Default: True.
+        
+        Notas:
+            - Componentes devem ser instâncias já configuradas
+            - CorretorHamming é criado automaticamente se usar_hamming=True
+            - Histórico de logs é inicializado vazio
+        
+        Exemplos:
+            >>> tx = Transmissor(
+            ...     modulador=NRZPolar(amplitude=5.0),
+            ...     enquadrador=EnquadradorContagem(),
+            ...     detector_erros=DetectorCRCVariavel(32),
+            ...     usar_hamming=True
+            ... )
         """
         self.modulador = modulador
         self.enquadrador = enquadrador

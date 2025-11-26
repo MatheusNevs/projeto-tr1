@@ -1,16 +1,101 @@
 """
-Corretor de erros: Código de Hamming(7,4)
+Módulo de Correção de Erros - Código de Hamming.
+
+Implementa o código de Hamming para correção automática de erros de 1 bit
+e detecção de erros de 2 bits (SECDED - Single Error Correction, Double Error Detection).
+
+O código de Hamming é um código linear de correção de erros que adiciona bits
+de paridade em posições estratégicas (potências de 2) para permitir não apenas
+detectar, mas também corrigir erros.
+
+Classes:
+    CorretorHamming: Implementação completa do código de Hamming.
+
+Características:
+    - Corrige automaticamente erros de 1 bit
+    - Detecta (mas não corrige) erros de 2 bits
+    - Overhead logarítmico: log₂(n) bits extras para n bits de dados
+    - Bits de paridade em posições 1, 2, 4, 8, 16, ... (potências de 2)
+
+Fórmulas:
+    - Bits de paridade necessários: r tal que 2^r >= m + r + 1
+    - Para m bits de dados: Hamming(n, m) onde n = m + r
+    - Taxa de código R = m/n (eficiência)
+
+Exemplos Clássicos:
+    - Hamming(7,4): 4 bits dados + 3 bits paridade = 7 bits total
+    - Hamming(15,11): 11 bits dados + 4 bits paridade = 15 bits total
+    - Hamming(31,26): 26 bits dados + 5 bits paridade = 31 bits total
+
+Aplicações:
+    - Memória RAM (ECC memory)
+    - Discos rígidos e SSDs
+    - Comunicação espacial (deep space)
+    - Códigos QR
+    - Armazenamento de dados críticos
+
+Exemplos:
+    >>> hamming = CorretorHamming()
+    >>> dados = [1, 0, 1, 1, 0, 0, 1, 0]
+    >>> dados_codificados = hamming.codificar(dados)
+    >>> # Simula erro de 1 bit
+    >>> dados_codificados[0] ^= 1
+    >>> dados_recuperados, erros = hamming.decodificar(dados_codificados)
+    >>> print(dados == dados_recuperados)
+    True  # Erro corrigido automaticamente!
 """
 
 class CorretorHamming:
     """
-    Corretor de erros usando código de Hamming(7,4)
+    Corretor de erros usando Código de Hamming.
+    
+    Implementa o algoritmo de Hamming para adicionar redundância aos dados
+    de forma que erros de 1 bit possam ser corrigidos automaticamente e
+    erros de 2 bits possam ser detectados.
+    
+    Funcionamento:
+        1. Codificação:
+           - Insere bits de dados em posições não-potência-de-2
+           - Calcula bits de paridade para posições 1, 2, 4, 8, ...
+           - Cada bit de paridade cobre posições específicas
+        
+        2. Decodificação:
+           - Recalcula bits de paridade
+           - Compara com bits recebidos
+           - Síndrome = posição do erro (0 = sem erro)
+           - Corrige bit na posição indicada pela síndrome
     
     Características:
-    - Detecta e corrige 1 erro por bloco de 7 bits
-    - Processa em blocos de 4 bits de dados
-    - Adiciona 3 bits de paridade
-    - Total: 7 bits codificados
+        - SECDED: Single Error Correction, Double Error Detection
+        - Overhead: ⌈log₂(n+1)⌉ bits para n bits de dados
+        - Distância de Hamming: 3 (mínima entre palavras-código)
+        - Taxa de código: m/(m+r) onde m=dados, r=paridade
+    
+    Posições de Paridade:
+        - P1 (posição 1): cobre posições 1,3,5,7,9,11,...
+        - P2 (posição 2): cobre posições 2,3,6,7,10,11,...
+        - P4 (posição 4): cobre posições 4,5,6,7,12,13,...
+        - P8 (posição 8): cobre posições 8,9,10,11,12,13,...
+    
+    Cálculo da Síndrome:
+        S = S1×1 + S2×2 + S4×4 + S8×8 + ...
+        onde Si = paridade calculada XOR paridade recebida
+        Se S = 0: sem erro
+        Se S > 0: erro na posição S
+    
+    Limitações:
+        - Corrige apenas 1 bit por bloco
+        - Se houver 2+ erros, pode corrigir incorretamente
+        - Detecta 2 erros mas não os localiza
+        - Overhead aumenta com tamanho do bloco
+    
+    Exemplos:
+        >>> hamming = CorretorHamming()
+        >>> # Hamming(7,4) clássico
+        >>> dados = [1, 0, 1, 1]
+        >>> codificado = hamming.codificar(dados)
+        >>> print(len(codificado))  # 4 dados + 3 paridade
+        7
     """
 
     def calcular_bits_paridade(self, tamanho_dados: int) -> int:
