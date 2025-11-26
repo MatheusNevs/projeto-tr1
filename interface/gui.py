@@ -174,7 +174,6 @@ class InterfaceGrafica:
     Notas:
         - Threading evita bloqueio da interface durante transmissão
         - root.after() garante thread-safety nas atualizações de GUI
-        - Validações impedem configurações inválidas (Nyquist, etc.)
         - Matplotlib integrado permite zoom, pan e save de gráficos
         - Estatísticas incluem MSE, SNR, frequência dominante
     
@@ -1390,7 +1389,6 @@ class InterfaceGrafica:
             - Análise de largura de banda ocupada
             - Detecção de componentes DC
             - Comparação de densidade espectral de potência
-            - Validação de Nyquist (verificar aliasing)
         
         Conceitos de Telecomunicações:
             - FFT: Ferramenta fundamental para análise de sinais
