@@ -989,7 +989,7 @@ class QAM16(ModuladorPortadora):
 
 if __name__ == "__main__":
     print("="*70)
-    print("TESTANDO MODULAÇÕES POR PORTADORA - PESSOA 2")
+    print("TESTANDO MODULAÇÕES POR PORTADORA")
     print("="*70)
 
     # Bits de teste

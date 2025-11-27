@@ -304,7 +304,7 @@ class CorretorHamming:
 
 if __name__ == "__main__":
     print("=" * 80)
-    print("TESTANDO CÓDIGO DE HAMMING(7,4) - PESSOA 4")
+    print("TESTANDO CÓDIGO DE HAMMING(7,4)")
     print("=" * 80)
 
     hamming = CorretorHamming()

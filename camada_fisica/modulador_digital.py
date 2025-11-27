@@ -459,7 +459,7 @@ class Bipolar(ModuladorDigital):
 
 if __name__ == "__main__":
     print("="*70)
-    print("TESTANDO MODULAÇÕES DIGITAIS - PESSOA 1")
+    print("TESTANDO MODULAÇÕES DIGITAIS")
     print("="*70)
 
     # Bits de teste
