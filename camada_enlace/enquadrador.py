@@ -1,11 +1,12 @@
 """
 Módulo de Enquadramento de Quadros.
 
-Implementa dois protocolos de enquadramento para delimitar quadros no
+Implementa três protocolos de enquadramento para delimitar quadros no
 fluxo de bits transmitido:
 
 1. Contagem de Bytes: Usa campo de tamanho no cabeçalho
 2. Bit Stuffing: Usa delimitadores FLAG (01111110) com inserção de bits
+3. Byte Stuffing: Usa delimitadores FLAG com escape de bytes (ESC)
 
 O enquadramento é essencial para separar mensagens individuais em um
 fluxo contínuo de bits, permitindo ao receptor identificar onde cada
@@ -14,12 +15,14 @@ mensagem começa e termina.
 Classes:
     Enquadrador: Classe abstrata base.
     EnquadradorContagem: Enquadramento por campo de tamanho.
+    EnquadradorFlagsBytes: Enquadramento com FLAGS e byte stuffing (opera em bits).
     EnquadradorFlagsBits: Enquadramento com FLAGS e bit stuffing.
 
 Problema do Enquadramento:
     Como saber onde cada mensagem começa e termina no fluxo de bits?
     Solução 1: Adicionar campo "tamanho" no início
     Solução 2: Usar delimitadores especiais (FLAGS)
+    Solução 3: Usar delimitadores + escape de caracteres especiais
 
 Aplicações:
     - Ethernet: Usa preâmbulo + delimitador
@@ -34,8 +37,15 @@ Exemplos:
     >>> quadro = enq.enquadrar(dados)
     >>> # quadro = [16 bits tamanho] + dados
     >>> 
+    >>> # Byte Stuffing
+    >>> enq = EnquadradorFlagsBytes()
+    >>> dados = [0,1,0,0,0,0,0,1, 0,1,1,1,1,1,1,0]  # 'A' + FLAG
+    >>> quadro = enq.enquadrar(dados)
+    >>> # quadro = [FLAG] + [0x41] + [ESC] + [0x5E] + [FLAG]
+    >>> 
     >>> # Bit Stuffing
     >>> enq = EnquadradorFlagsBits()
+    >>> dados = [1, 0, 1, 1, 0]
     >>> quadro = enq.enquadrar(dados)
     >>> # quadro = [FLAG] + dados_stuffed + [FLAG]
 """
@@ -189,6 +199,221 @@ class EnquadradorContagem(Enquadrador):
         tamanho_bits = quadro[:16]
         tamanho = int(''.join(map(str, tamanho_bits)), 2)
         return quadro[16:16+tamanho]
+
+
+class EnquadradorFlagsBytes(Enquadrador):
+    """
+    Enquadramento com FLAGS e Byte Stuffing (operando em bits).
+    
+    Usa byte FLAG (0x7E = 01111110) e byte ESC (0x7D = 01111101) para
+    delimitar quadros. Quando FLAG ou ESC aparecem nos dados, são escapados
+    com ESC seguido do byte XOR 0x20.
+    
+    IMPORTANTE: Opera em listas de BITS (não bytes), mantendo compatibilidade
+    com o resto do sistema, mas implementa lógica de byte stuffing.
+    
+    Formato do Quadro:
+        [FLAG byte][dados com byte stuffing][FLAG byte]
+        FLAG = 0x7E = 01111110
+        ESC  = 0x7D = 01111101
+    
+    Funcionamento:
+        - Transmissor:
+          1. Envia FLAG de abertura (8 bits)
+          2. Processa dados byte a byte (grupos de 8 bits):
+             - Se byte == FLAG (0x7E): envia ESC + (FLAG XOR 0x20)
+             - Se byte == ESC (0x7D): envia ESC + (ESC XOR 0x20)
+             - Senão: envia byte normal
+          3. Envia FLAG de fechamento (8 bits)
+        
+        - Receptor:
+          1. Procura FLAG de abertura
+          2. Lê dados até próximo FLAG
+          3. Remove bytes escapados:
+             - Se encontrar ESC: próximo byte = byte XOR 0x20
+    
+    Vantagens:
+        - Simples de implementar
+        - Mantém alinhamento de byte (blocos de 8 bits)
+        - Processamento rápido (byte a byte)
+        - Usado em PPP assíncrono
+    
+    Desvantagens:
+        - Overhead maior que bit stuffing (mínimo 16 bits, pode chegar a 100%)
+        - Pior caso: dados cheios de 0x7E e 0x7D (dobra o tamanho)
+        - Menos eficiente que bit stuffing para dados aleatórios
+    
+    Overhead:
+        - Mínimo: 16 bits (2 FLAGS)
+        - Médio: ~5-10% para dados normais
+        - Máximo: 100% (dados = todos FLAG/ESC)
+    
+    Aplicações:
+        - PPP (Point-to-Point Protocol) modo assíncrono
+        - SLIP (Serial Line Internet Protocol)
+        - Comunicação serial com escape
+    
+    Diferença de Bit Stuffing:
+        - Bit stuffing: insere 1 BIT após 5 uns
+        - Byte stuffing: insere 2 BYTES (16 bits) quando encontra FLAG/ESC
+    
+    Exemplos:
+        >>> enq = EnquadradorFlagsBytes()
+        >>> # Dados contêm FLAG (0x7E)
+        >>> dados = [0,1,0,0,0,0,0,1, 0,1,1,1,1,1,1,0]  # 'A' + FLAG
+        >>> quadro = enq.enquadrar(dados)
+        >>> # Resultado: [FLAG][0x41][ESC][0x5E][FLAG]
+        >>> #             8bits + 8bits + 8bits + 8bits + 8bits = 40 bits
+    """
+
+    def __init__(self):
+        """
+        Inicializa enquadrador com FLAGS e ESC para byte stuffing.
+        
+        Attributes:
+            flag (list): Byte FLAG = [0,1,1,1,1,1,1,0] (0x7E).
+            esc (list): Byte ESC = [0,1,1,1,1,1,0,1] (0x7D).
+            xor_byte (list): Byte XOR = [0,0,1,0,0,0,0,0] (0x20) para modificar.
+            tamanho_max_quadro (int): Tamanho máximo antes do stuffing.
+        """
+        config = Config()
+        self.flag = [0, 1, 1, 1, 1, 1, 1, 0]  # 0x7E = 01111110
+        self.esc = [0, 1, 1, 1, 1, 1, 0, 1]   # 0x7D = 01111101
+        self.xor_byte = [0, 0, 1, 0, 0, 0, 0, 0]  # 0x20 = 00100000
+        self.tamanho_max_quadro = config.TAMANHO_MAX_QUADRO * 8
+
+    def _xor_bits(self, bits: list, mask: list) -> list:
+        """
+        Faz XOR bit a bit entre duas listas de 8 bits.
+        
+        Args:
+            bits (list): 8 bits originais
+            mask (list): 8 bits da máscara
+            
+        Returns:
+            list: 8 bits resultantes do XOR
+        """
+        return [b ^ m for b, m in zip(bits, mask)]
+
+    def enquadrar(self, bits: list) -> list:
+        """
+        Adiciona FLAGS e aplica byte stuffing nos dados.
+        
+        Args:
+            bits (list): Dados em bits.
+            
+        Returns:
+            list: Quadro com FLAGS e bytes escapados.
+            
+        Raises:
+            ValueError: Se dados excedem tamanho máximo.
+        
+        Algoritmo:
+            1. Verifica tamanho e alinhamento de byte
+            2. Adiciona FLAG inicial
+            3. Para cada byte (8 bits) dos dados:
+               - Se byte == FLAG: adiciona ESC + (FLAG XOR 0x20)
+               - Se byte == ESC: adiciona ESC + (ESC XOR 0x20)
+               - Senão: adiciona byte normal
+            4. Adiciona FLAG final
+        """
+        # Verificar tamanho
+        if len(bits) > self.tamanho_max_quadro:
+            raise ValueError(f"Quadro muito grande: {len(bits)} bits > {self.tamanho_max_quadro} bits")
+        
+        # Iniciar quadro com FLAG
+        quadro = self.flag.copy()
+        
+        # Calcular bytes completos e bits restantes
+        num_bytes_completos = len(bits) // 8
+        bits_restantes = len(bits) % 8
+        
+        # Processar bytes completos (grupos de 8 bits)
+        for i in range(num_bytes_completos):
+            byte_bits = bits[i*8:(i+1)*8]
+            
+            # Verificar se precisa escapar (comparação de LISTAS de bits)
+            # Apenas bytes completos (8 bits) podem ser FLAG ou ESC
+            if byte_bits == self.flag:  # Byte é FLAG?
+                # Adicionar ESC + (FLAG XOR 0x20)
+                quadro.extend(self.esc)
+                byte_escapado = self._xor_bits(byte_bits, self.xor_byte)
+                quadro.extend(byte_escapado)
+            elif byte_bits == self.esc:  # Byte é ESC?
+                # Adicionar ESC + (ESC XOR 0x20)
+                quadro.extend(self.esc)
+                byte_escapado = self._xor_bits(byte_bits, self.xor_byte)
+                quadro.extend(byte_escapado)
+            else:
+                # Byte normal, adicionar sem modificação
+                quadro.extend(byte_bits)
+        
+        # Se houver bits restantes (< 8 bits), adicionar diretamente
+        # Bits parciais não podem ser FLAG nem ESC, então não precisam de escape
+        if bits_restantes > 0:
+            quadro.extend(bits[num_bytes_completos * 8:])
+        
+        # Adicionar FLAG final
+        quadro.extend(self.flag)
+        
+        return quadro
+
+    def desenquadrar(self, quadro: list) -> list:
+        """
+        Remove FLAGS e desfaz byte stuffing.
+        
+        Args:
+            quadro (list): Quadro completo com FLAGS.
+            
+        Returns:
+            list: Dados originais sem FLAGS e com bytes desescapados.
+        
+        Algoritmo:
+            1. Remove FLAGS inicial e final
+            2. Processa bytes:
+               - Se encontrar ESC: próximo byte XOR 0x20
+               - Senão: byte normal
+        """
+        tam_flag = len(self.flag)
+        
+        # Verificar tamanho mínimo (2 FLAGS)
+        if len(quadro) <= 2 * tam_flag:
+            return []
+        
+        # Remover FLAGS inicial e final
+        bits = quadro[tam_flag:-tam_flag]
+        
+        # Calcular bytes completos e bits restantes
+        num_bytes_completos = len(bits) // 8
+        bits_restantes = len(bits) % 8
+        
+        dados = []
+        i = 0
+        
+        # Processar bytes completos (trabalhando apenas com listas de bits)
+        while i < num_bytes_completos * 8:
+            byte_bits = bits[i:i+8]
+            
+            # Se é ESC, próximo byte está escapado
+            if byte_bits == self.esc:
+                i += 8  # Pula o ESC
+                if i >= num_bytes_completos * 8:
+                    break  # ESC sem byte seguinte (erro)
+                
+                byte_bits = bits[i:i+8]
+                byte_original = self._xor_bits(byte_bits, self.xor_byte)  # Desfaz XOR
+                dados.extend(byte_original)
+            else:
+                # Byte normal
+                dados.extend(byte_bits)
+            
+            i += 8
+        
+        # Se houver bits restantes, adicionar diretamente
+        if bits_restantes > 0:
+            dados.extend(bits[num_bytes_completos * 8:])
+        
+        return dados
 
 
 class EnquadradorFlagsBits(Enquadrador):

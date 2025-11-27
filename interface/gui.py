@@ -77,7 +77,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from comunicacao import Transmissor, Receptor, CanalComunicacao
 from camada_fisica.modulador_digital import NRZPolar, Manchester, Bipolar
 from camada_fisica.modulador_portadora import ASK, FSK, QPSK, QAM16
-from camada_enlace.enquadrador import EnquadradorContagem, EnquadradorFlagsBits
+from camada_enlace.enquadrador import EnquadradorContagem, EnquadradorFlagsBytes, EnquadradorFlagsBits
 from camada_enlace.detector_erros import (DetectorParidade, DetectorChecksumVariavel, 
                                           DetectorCRCVariavel)
 
@@ -111,7 +111,7 @@ class InterfaceGrafica:
         Widgets de Configuração:
             combo_tipo_modulacao (ttk.Combobox): Digital ou Portadora
             combo_modulacao (ttk.Combobox): Tipo específico de modulação
-            combo_enquadramento (ttk.Combobox): Contagem ou FLAGS Bits
+            combo_enquadramento (ttk.Combobox): Contagem, FLAGS Bytes ou FLAGS Bits
             combo_deteccao (ttk.Combobox): Paridade, Checksum ou CRC
             combo_tamanho_edc (ttk.Combobox): 8, 16, 24 ou 32 bits
             var_hamming (tk.BooleanVar): Ativar/desativar Hamming
@@ -321,7 +321,7 @@ class InterfaceGrafica:
         # Linha 1: Enquadramento e Detecção
         ttk.Label(config_frame, text="Enquadramento:").grid(row=1, column=0, sticky=tk.W, pady=5)
         self.combo_enquadramento = ttk.Combobox(config_frame, state='readonly',
-                                                values=['Contagem', 'FLAGS Bits'])
+                                                values=['Contagem', 'FLAGS Bits', 'FLAGS Bytes'])
         self.combo_enquadramento.set('Contagem')
         self.combo_enquadramento.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
@@ -827,6 +827,9 @@ class InterfaceGrafica:
         if enq_tipo == 'Contagem':
             enquadrador_tx = EnquadradorContagem()
             enquadrador_rx = EnquadradorContagem()
+        elif enq_tipo == 'FLAGS Bytes':
+            enquadrador_tx = EnquadradorFlagsBytes()
+            enquadrador_rx = EnquadradorFlagsBytes()
         else:  # FLAGS Bits
             enquadrador_tx = EnquadradorFlagsBits()
             enquadrador_rx = EnquadradorFlagsBits()
