@@ -496,16 +496,29 @@ class InterfaceGrafica:
         plt.tight_layout()
 
         # Incorporar matplotlib no tkinter
-        self.canvas = FigureCanvasTkAgg(self.fig, master=aba_forma_onda)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-
-        # Adicionar barra de ferramentas de navegação
+        # Create toolbar first so it keeps a fixed height and the canvas can expand
         toolbar_frame = ttk.Frame(aba_forma_onda)
-        toolbar_frame.pack(fill=tk.X, padx=2, pady=(0, 2))
+        toolbar_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=(0, 2))
         
+        self.canvas = FigureCanvasTkAgg(self.fig, master=aba_forma_onda)
         self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         self.toolbar.update()
+        # Pack canvas after toolbar so the canvas expansion does not hide the toolbar
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=2, pady=2)
+
+        # Ensure toolbar and canvas refresh on resize
+        def _on_resize_forma(event):
+            try:
+                self.toolbar.update()
+            except Exception:
+                pass
+            try:
+                self.canvas.draw_idle()
+            except Exception:
+                pass
+
+        aba_forma_onda.bind('<Configure>', _on_resize_forma)
 
         # ==== ABA 2: ANÁLISE DE ESPECTRO ====
         aba_espectro = ttk.Frame(notebook, padding="5")
@@ -532,17 +545,28 @@ class InterfaceGrafica:
         
         plt.tight_layout()
 
-        # Incorporar matplotlib no tkinter
-        self.canvas_espectro = FigureCanvasTkAgg(self.fig_espectro, master=aba_espectro)
-        self.canvas_espectro.draw()
-        self.canvas_espectro.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-
-        # Adicionar barra de ferramentas de navegação para espectro
+        # Incorporar matplotlib no tkinter (espectro)
         toolbar_esp_frame = ttk.Frame(aba_espectro)
-        toolbar_esp_frame.pack(fill=tk.X, padx=2, pady=(0, 2))
-        
+        toolbar_esp_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=(0, 2))
+
+        self.canvas_espectro = FigureCanvasTkAgg(self.fig_espectro, master=aba_espectro)
         self.toolbar_espectro = NavigationToolbar2Tk(self.canvas_espectro, toolbar_esp_frame)
         self.toolbar_espectro.update()
+        self.canvas_espectro.draw()
+        self.canvas_espectro.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=2, pady=2)
+
+        # Ensure toolbar and canvas refresh on resize
+        def _on_resize_espectro(event):
+            try:
+                self.toolbar_espectro.update()
+            except Exception:
+                pass
+            try:
+                self.canvas_espectro.draw_idle()
+            except Exception:
+                pass
+
+        aba_espectro.bind('<Configure>', _on_resize_espectro)
 
         # Configurar redimensionamento completo
         # Root
